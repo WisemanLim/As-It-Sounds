@@ -1,0 +1,87 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "As It Sounds",
+  "version": "0.1.0",
+  "identifier": "com.asitsounds.app",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "As It Sounds",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 900,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["**"]
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "Productivity",
+    "shortDescription": "English audio to Hangul phonetics + Korean translation",
+    "longDescription": "As It Sounds transcribes English audio and video files locally with Whisper, transliterates the result into Korean phonetic Hangul, and shows a Korean translation — side-by-side, segment-by-segment.",
+    "copyright": "Copyright © 2026 As It Sounds contributors",
+    "publisher": "As It Sounds",
+    "homepage": "https://github.com/asitsounds/as-it-sounds",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "macOS": {
+      "frameworks": [],
+      "minimumSystemVersion": "11.0",
+      "exceptionDomain": "",
+      "entitlements": "entitlements.plist",
+      "signingIdentity": null,
+      "providerShortName": null,
+      "hardenedRuntime": true,
+      "dmg": {
+        "background": null,
+        "windowPosition": { "x": 400, "y": 100 },
+        "windowSize": { "width": 660, "height": 420 },
+        "appPosition": { "x": 180, "y": 170 },
+        "applicationFolderPosition": { "x": 480, "y": 170 }
+      }
+    },
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "http://timestamp.digicert.com",
+      "nsis": {
+        "installMode": "perMachine",
+        "displayLanguageSelector": true,
+        "languages": ["English", "Korean"]
+      },
+      "wix": {
+        "language": ["en-US", "ko-KR"]
+      }
+    },
+    "linux": {
+      "deb": {
+        "depends": ["ffmpeg"]
+      },
+      "appimage": {
+        "bundleMediaFramework": true
+      }
+    }
+  }
+}
