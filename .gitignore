@@ -18,6 +18,7 @@ src-tauri/target
 src-tauri/Cargo.lock.merge
 src-tauri/WixTools*
 src-tauri/gen/schemas
+src-tauri/.omc/**
 
 # App data accidentally committed
 models/
@@ -43,3 +44,4 @@ models/
 
 # samples
 .samples
+.omc/**

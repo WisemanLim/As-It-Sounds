@@ -3,6 +3,11 @@
 //! Strategy: (1) dictionary lookup for common words, (2) rule-based fallback
 //! that composes Hangul syllables from onset/vowel/optional coda matched from
 //! the input English letters.
+//!
+//! Key rules:
+//! - Consonant clusters: the first consonant becomes a coda (받침) on the
+//!   previous vowel syllable when possible, rather than being emitted as 으+C.
+//! - Vowel+r digraphs: "er/ar/or/ir/ur" are treated as single vowel sounds.
 
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
@@ -97,6 +102,42 @@ fn push_syllable(out: &mut String, onset: u32, vowel: Vowel, coda: u32) {
     out.push(compose(onset, vowel.idx(), coda));
 }
 
+/// Map an onset consonant index to the corresponding jongseong (coda) index.
+fn onset_to_coda(onset: u32) -> Option<u32> {
+    match onset {
+        0 | 15 => Some(C_K),  // ㄱ/ㅋ → ㄱ받침
+        2 => Some(C_N),        // ㄴ → ㄴ받침
+        3 | 16 => Some(C_T),   // ㄷ/ㅌ → ㅅ받침 (loanword convention)
+        5 => Some(C_L),        // ㄹ → ㄹ받침
+        6 => Some(C_M),        // ㅁ → ㅁ받침
+        7 | 17 => Some(C_P),   // ㅂ/ㅍ → ㅂ받침
+        9 => Some(C_T),        // ㅅ → ㅅ받침
+        _ => None,
+    }
+}
+
+/// Attempt to attach `onset` as a coda on the last Hangul syllable in `out`.
+/// Returns true if successful, false if the syllable already had a coda or
+/// there was no suitable syllable to attach to.
+fn try_attach_coda(out: &mut String, onset: u32) -> bool {
+    if let Some(last) = out.pop() {
+        let cu = last as u32;
+        if (0xAC00..=0xD7A3).contains(&cu) {
+            let rel = cu - 0xAC00;
+            if rel % 28 == 0 {
+                if let Some(coda) = onset_to_coda(onset) {
+                    if let Some(ch) = char::from_u32(cu + coda) {
+                        out.push(ch);
+                        return true;
+                    }
+                }
+            }
+        }
+        out.push(last);
+    }
+    false
+}
+
 fn is_vowel(c: char) -> bool {
     matches!(
         c.to_ascii_lowercase(),
@@ -128,10 +169,13 @@ fn rule_transliterate_word(word: &str) -> String {
         let slice2: &str = std::str::from_utf8(&bytes[i..(i + 2).min(n)]).unwrap_or("");
         let slice3: &str = std::str::from_utf8(&bytes[i..(i + 3).min(n)]).unwrap_or("");
 
-        // Flush a pending onset with 으 if the current thing isn't a vowel cluster.
+        // Flush a pending onset: try to attach it as a coda on the previous
+        // syllable first; fall back to emitting 으+consonant only if that fails.
         let flush_pending = |pending: &mut Option<u32>, out: &mut String| {
             if let Some(p) = pending.take() {
-                push_syllable(out, p, Vowel::Eu, NO_CODA);
+                if !try_attach_coda(out, p) {
+                    push_syllable(out, p, Vowel::Eu, NO_CODA);
+                }
             }
         };
 
@@ -152,6 +196,25 @@ fn rule_transliterate_word(word: &str) -> String {
 
         // Vowel digraphs
         match slice2 {
+            // Vowel+r: "er/ar/or/ir/ur" are rhotic vowels; treat as single vowel sound
+            "er" | "ir" | "ur" => {
+                let o = pending.take().unwrap_or(11);
+                push_syllable(&mut out, o, Vowel::Eo, NO_CODA); // 어
+                i += 2;
+                continue;
+            }
+            "ar" => {
+                let o = pending.take().unwrap_or(11);
+                push_syllable(&mut out, o, Vowel::A, NO_CODA); // 아
+                i += 2;
+                continue;
+            }
+            "or" => {
+                let o = pending.take().unwrap_or(11);
+                push_syllable(&mut out, o, Vowel::O, NO_CODA); // 오
+                i += 2;
+                continue;
+            }
             "oo" => {
                 let o = pending.take().unwrap_or(11);
                 push_syllable(&mut out, o, Vowel::U, NO_CODA);
@@ -636,6 +699,203 @@ static DICT: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
         ("starting", "스타팅"),
         ("stop", "스톱"),
         ("hello,", "헬로,"),
+        // Numbers
+        ("number", "넘버"),
+        ("numbers", "넘버즈"),
+        ("zero", "지로"),
+        ("hundred", "헌드레드"),
+        ("thousand", "따우전드"),
+        ("million", "밀리언"),
+        // Common verbs
+        ("coming", "커밍"),
+        ("going", "고잉"),
+        ("doing", "두잉"),
+        ("having", "해빙"),
+        ("being", "비잉"),
+        ("getting", "게팅"),
+        ("making", "메이킹"),
+        ("looking", "루킹"),
+        ("taking", "테이킹"),
+        ("saying", "세이잉"),
+        ("working", "워킹"),
+        ("know", "노우"),
+        ("knew", "뉴"),
+        ("fix", "픽스"),
+        ("fixed", "픽스트"),
+        ("fixing", "픽싱"),
+        ("lights", "라이츠"),
+        ("light", "라이트"),
+        ("come", "컴"),
+        ("came", "케임"),
+        // Contractions
+        ("isn't", "이즌트"),
+        ("aren't", "아른트"),
+        ("wasn't", "워즌트"),
+        ("weren't", "워른트"),
+        ("don't", "돈트"),
+        ("doesn't", "더즌트"),
+        ("didn't", "디든트"),
+        ("won't", "원트"),
+        ("wouldn't", "우든트"),
+        ("can't", "캔트"),
+        ("couldn't", "쿠든트"),
+        ("shouldn't", "슈든트"),
+        ("haven't", "해븐트"),
+        ("hasn't", "해즌트"),
+        ("hadn't", "해든트"),
+        ("i'm", "아임"),
+        ("i've", "아이브"),
+        ("i'll", "아일"),
+        ("i'd", "아이드"),
+        ("you're", "유어"),
+        ("you've", "유브"),
+        ("you'll", "유일"),
+        ("he's", "히즈"),
+        ("she's", "쉬즈"),
+        ("it's", "잇츠"),
+        ("we're", "위어"),
+        ("they're", "데어"),
+        ("that's", "댓츠"),
+        ("there's", "데어즈"),
+        ("here's", "히어즈"),
+        ("what's", "왓츠"),
+        ("let's", "렛츠"),
+        // Common nouns
+        ("electrician", "일렉트리션"),
+        ("electricity", "일렉트리시티"),
+        ("electric", "일렉트릭"),
+        ("election", "일렉션"),
+        ("elections", "일렉션즈"),
+        ("october", "옥토버"),
+        ("january", "재뉴어리"),
+        ("february", "페브루어리"),
+        ("march", "마치"),
+        ("april", "에이프릴"),
+        ("may", "메이"),
+        ("june", "준"),
+        ("july", "줄라이"),
+        ("august", "오거스트"),
+        ("september", "셉템버"),
+        ("november", "노벰버"),
+        ("december", "디셈버"),
+        ("monday", "먼데이"),
+        ("tuesday", "튜즈데이"),
+        ("wednesday", "웬즈데이"),
+        ("thursday", "써즈데이"),
+        ("friday", "프라이데이"),
+        ("saturday", "새터데이"),
+        ("sunday", "선데이"),
+        ("morning", "모닝"),
+        ("afternoon", "애프터눈"),
+        ("evening", "이브닝"),
+        ("water", "워터"),
+        ("money", "머니"),
+        ("food", "푸드"),
+        ("door", "도어"),
+        ("window", "윈도우"),
+        ("floor", "플로어"),
+        ("room", "룸"),
+        ("kitchen", "키친"),
+        ("bathroom", "배쓰룸"),
+        ("office", "오피스"),
+        ("store", "스토어"),
+        ("market", "마켓"),
+        ("hospital", "하스피털"),
+        ("doctor", "닥터"),
+        ("teacher", "티처"),
+        ("student", "스튜던트"),
+        ("mother", "마더"),
+        ("father", "파더"),
+        ("brother", "브라더"),
+        ("sister", "시스터"),
+        ("daughter", "도터"),
+        ("son", "선"),
+        ("husband", "허즈번드"),
+        ("wife", "와이프"),
+        ("baby", "베이비"),
+        ("animal", "애니멀"),
+        ("water", "워터"),
+        ("coffee", "커피"),
+        ("tea", "티"),
+        ("pizza", "피자"),
+        ("burger", "버거"),
+        // Common adjectives
+        ("happy", "해피"),
+        ("sad", "새드"),
+        ("angry", "앵그리"),
+        ("tired", "타이어드"),
+        ("hungry", "헝그리"),
+        ("thirsty", "써스티"),
+        ("beautiful", "뷰티풀"),
+        ("pretty", "프리티"),
+        ("handsome", "핸섬"),
+        ("smart", "스마트"),
+        ("funny", "퍼니"),
+        ("important", "임포턴트"),
+        ("different", "디퍼런트"),
+        ("other", "어더"),
+        ("same", "세임"),
+        ("right", "라이트"),
+        ("wrong", "롱"),
+        ("long", "롱"),
+        ("short", "쇼트"),
+        ("easy", "이지"),
+        ("hard", "하드"),
+        ("difficult", "디피컬트"),
+        ("possible", "파시블"),
+        ("ready", "레디"),
+        ("sure", "슈어"),
+        ("true", "트루"),
+        ("false", "폴스"),
+        ("free", "프리"),
+        ("open", "오픈"),
+        ("close", "클로즈"),
+        ("closed", "클로즈드"),
+        // Prepositions/conjunctions
+        ("before", "비포"),
+        ("after", "애프터"),
+        ("during", "듀링"),
+        ("through", "쓰루"),
+        ("between", "비트윈"),
+        ("behind", "비하인드"),
+        ("under", "언더"),
+        ("over", "오버"),
+        ("around", "어라운드"),
+        ("against", "어겐스트"),
+        ("until", "언틸"),
+        ("while", "와일"),
+        ("although", "올도우"),
+        ("however", "하우에버"),
+        ("therefore", "데어포"),
+        ("whether", "웨더"),
+        ("actually", "액추얼리"),
+        ("usually", "유주얼리"),
+        ("really", "릴리"),
+        ("already", "올레디"),
+        ("still", "스틸"),
+        ("again", "어겐"),
+        ("never", "네버"),
+        ("always", "올웨이즈"),
+        ("sometimes", "썸타임즈"),
+        ("often", "오픈"),
+        ("ever", "에버"),
+        ("maybe", "메이비"),
+        ("probably", "프라버블리"),
+        ("almost", "올모스트"),
+        ("enough", "이너프"),
+        ("together", "투게더"),
+        ("everything", "에브리씽"),
+        ("something", "썸씽"),
+        ("nothing", "낫씽"),
+        ("anything", "애니씽"),
+        ("someone", "썸원"),
+        ("everyone", "에브리원"),
+        ("nobody", "노바디"),
+        ("anybody", "애니바디"),
+        ("somewhere", "썸웨어"),
+        ("everywhere", "에브리웨어"),
+        ("nowhere", "노웨어"),
+        ("anyway", "애니웨이"),
     ];
     let mut map = HashMap::new();
     for (k, v) in entries {
@@ -696,5 +956,33 @@ mod tests {
     fn fallback_produces_hangul() {
         let out = rule_transliterate_word("crackle");
         assert!(!out.is_empty());
+    }
+
+    #[test]
+    fn number_dict() {
+        let out = transliterate("Number 2");
+        assert_eq!(out, "넘버 2");
+    }
+
+    #[test]
+    fn consonant_cluster_coda() {
+        // "mb" → ㅁ should attach as coda to previous vowel, not emit 므
+        let out = rule_transliterate_word("number");
+        assert_eq!(out, "넘버");
+    }
+
+    #[test]
+    fn er_digraph() {
+        // "er" at end → 어, not 에ㄹ
+        let out = rule_transliterate_word("butter");
+        assert!(out.ends_with('어') || out.contains("터"), "got: {out}");
+    }
+
+    #[test]
+    fn electrician_dict() {
+        let out = transliterate("The electrician is coming today, isn't he?");
+        assert!(out.contains("일렉트리션"), "got: {out}");
+        assert!(out.contains("커밍"), "got: {out}");
+        assert!(out.contains("이즌트"), "got: {out}");
     }
 }
