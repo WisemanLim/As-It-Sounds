@@ -2,9 +2,9 @@
 
 # As It Sounds
 
-**영어 음성/영상을 한글 발음 그대로 옮기고, 한국어 번역을 함께 보여주는 오프라인 우선 데스크탑 앱**
+**어떤 언어의 음성/영상이든 실제 발음을 한글로 옮기고, 한국어 번역을 함께 보여주는 오프라인 우선 데스크탑 앱**
 
-**An offline-first desktop app that transcribes English audio/video, transliterates it into Korean phonetic Hangul, and shows a Korean translation — side by side.**
+**An offline-first desktop app that phonetically transcribes audio/video in any language into Korean Hangul — as it actually sounds — with a Korean translation alongside.**
 
 Tauri 2 · Rust · React 19 · TypeScript · Whisper.cpp
 
@@ -16,14 +16,17 @@ Tauri 2 · Rust · React 19 · TypeScript · Whisper.cpp
 
 ### 소개
 
-**As It Sounds** 는 영어 음성·영상 파일을 로컬에서 **Whisper** 로 인식하고, 그 결과를 **한글 발음 표기(음차)** 와 **한국어 번역** 으로 나란히 보여주는 데스크탑 앱입니다. 파일을 외부로 전송하지 않고 오프라인에서 동작하는 것이 기본이며, 번역만 선택적으로 외부 API(MyMemory, LibreTranslate)를 사용합니다.
+**As It Sounds** 는 **어떤 언어**의 음성·영상 파일이든 로컬에서 **Whisper** 로 인식하고, 그 결과를 **실제 발음 그대로 한글 표기(음차)** 와 **한국어 번역** 으로 나란히 보여주는 데스크탑 앱입니다. 언어를 별도로 지정할 필요 없이 자동으로 감지합니다. 파일을 외부로 전송하지 않고 오프라인에서 동작하는 것이 기본이며, 번역만 선택적으로 외부 API(MyMemory, LibreTranslate)를 사용합니다.
 
-> 예: `As it sounds` → **애즈 잇 사운즈** → **들리는 대로**
+> 예: 영어 `As it sounds` → **애즈 잇 사운즈** → **들리는 대로**
+> 예: 일본어 `こんにちは` → **콩니치하**
+> 예: 프랑스어 `bonjour` → **봉주흐**
+> 예: 러시아어 `Москва` → **모스크바**
 
 ### 주요 기능
 
-- 🎙️ **완전 오프라인 ASR** — Whisper 모델(tiny/base/small/medium/large) 로컬 실행
-- 🔤 **영어 → 한글 음차** — 사전 + 규칙 기반 Rust 네이티브 구현 (외부 의존성 없음)
+- 🎙️ **완전 오프라인 ASR** — Whisper 다국어 모델(tiny/base/small/medium/large) 로컬 실행, **언어 자동 감지**
+- 🔤 **다국어 → 한글 음차** — 스크립트 자동 감지 후 언어별 발음 규칙 적용 (영어·일본어·프랑스어·스페인어·독일어·러시아어 등), Rust 네이티브 구현
 - 🌐 **한국어 번역** — MyMemory(무료, 키 불필요) 기본 / LibreTranslate 셀프호스트 지원
 - 🎧 **음성·영상 모두 지원** — MP3, WAV, M4A, FLAC, OGG, MP4, MOV, MKV, WEBM, AVI
 - 🖱️ **다중 파일 드래그앤드롭** — OS 레벨 네이티브 드롭
@@ -79,7 +82,7 @@ pnpm install
 pnpm tauri:dev
 ```
 
-최초 실행 시 Whisper `base.en` 모델(≈142 MB) 을 Hugging Face에서 자동 다운로드합니다. 진행률이 상단에 표시됩니다.
+최초 실행 시 Whisper `base` 다국어 모델(≈142 MB) 을 Hugging Face에서 자동 다운로드합니다. 진행률이 상단에 표시됩니다.
 
 ### 사용법
 
@@ -90,7 +93,7 @@ pnpm tauri:dev
 
 ### 설정 (⚙️ 사이드바 하단)
 
-- **Whisper 모델**: tiny.en(75 MB) ~ large-v3(2.9 GB) 선택 — 크기가 클수록 정확도↑, 속도↓
+- **Whisper 모델**: tiny(75 MB) ~ large-v3(2.9 GB) 선택 — 다국어 모델 권장 (`.en` 접미사 없는 것), 크기가 클수록 정확도↑, 속도↓
 - **번역 엔진**: MyMemory · LibreTranslate · 사용 안 함
 - **번역 엔드포인트**: 셀프호스트 URL 지정 가능
 - **LibreTranslate API Key**: (선택)
@@ -207,7 +210,7 @@ pnpm tauri:build:win
     │       ├── pipeline.rs         # 파이프라인 오케스트레이션
     │       ├── settings.rs         # 설정 로드/저장
     │       ├── translate.rs        # 번역(MyMemory / LibreTranslate)
-    │       └── translit.rs         # 영어 → 한글 음차
+    │       └── translit.rs         # 다국어 → 한글 음차 (스크립트 자동 감지)
     ├── capabilities/default.json   # Tauri capability allowlist
     ├── entitlements.plist          # macOS 샌드박스 / notarization
     └── tauri.conf.json
@@ -216,11 +219,11 @@ pnpm tauri:build:win
 ### 파이프라인 흐름
 
 ```
-MediaFile
+MediaFile (영어·일본어·프랑스어·스페인어·독일어·러시아어 등)
   └─▶ ffmpeg  : 16 kHz mono f32 PCM 추출
-        └─▶ Whisper ASR : segments[{start, end, text}]
-              ├─▶ translit.rs : 영어 → 한글 발음
-              └─▶ translate.rs: 영어 → 한국어 (비동기)
+        └─▶ Whisper ASR (언어 자동 감지) : segments[{start, end, text}]
+              ├─▶ translit.rs : 스크립트 감지 → 언어별 발음 규칙 → 한글
+              └─▶ translate.rs: → 한국어 (비동기)
                     └─▶ SQLite 저장 + `pipeline://event` 스트리밍
 ```
 
@@ -241,7 +244,7 @@ MediaFile
 - [x] Phase 1 UI 셸 — Sidebar / 드롭존 / 세그먼트 뷰
 - [x] Phase 2 미디어 플레이어 — 시크 / 하이라이트 동기화
 - [x] Phase 3 ASR 통합 — whisper-rs + ffmpeg 사이드카
-- [x] Phase 4 음차 — 규칙 기반 영어 → 한글
+- [x] Phase 4 음차 — 다국어 → 한글 (영어·일본어·프랑스어·스페인어·독일어·러시아어), 스크립트 자동 감지
 - [x] Phase 5 번역 — MyMemory / LibreTranslate
 - [x] Phase 6 영구화 — SQLite
 - [x] Phase 7 패키징 — 번들 / 엔타이틀먼트 / CI / GitHub Release
@@ -263,14 +266,17 @@ MIT — [LICENSE](LICENSE) 참조.
 
 ### Overview
 
-**As It Sounds** is a desktop app that transcribes English audio/video files locally with **Whisper**, transliterates each segment into **Korean phonetic Hangul**, and shows the **Korean translation** beside it. It runs fully offline by default; only translation optionally calls an external HTTP API (MyMemory or LibreTranslate).
+**As It Sounds** is a desktop app that transcribes audio/video in **any language** locally with **Whisper** (auto language detection), converts each segment into **Korean phonetic Hangul exactly as it sounds**, and shows the **Korean translation** beside it. No language selection needed — the app detects and handles it automatically. It runs fully offline by default; only translation optionally calls an external HTTP API (MyMemory or LibreTranslate).
 
-> Example: `As it sounds` → **애즈 잇 사운즈** → **들리는 대로**
+> Example — English: `As it sounds` → **애즈 잇 사운즈** → **들리는 대로**
+> Example — Japanese: `こんにちは` → **콩니치하**
+> Example — French: `bonjour` → **봉주흐**
+> Example — Russian: `Москва` → **모스크바**
 
 ### Features
 
-- 🎙️ **Fully offline ASR** — Whisper (tiny/base/small/medium/large) runs locally
-- 🔤 **English → Korean phonetic (Hangul)** — native Rust rule-based transliterator with a built-in dictionary
+- 🎙️ **Fully offline ASR** — Whisper multilingual (tiny/base/small/medium/large) runs locally with **automatic language detection**
+- 🔤 **Any language → Korean phonetic (Hangul)** — script-aware Rust transliterator: English, Japanese (kana), French, Spanish, German, Russian/Cyrillic and more
 - 🌐 **Korean translation** — MyMemory (free, key-less) by default; LibreTranslate self-host supported
 - 🎧 **Audio & video** — MP3, WAV, M4A, FLAC, OGG, MP4, MOV, MKV, WEBM, AVI
 - 🖱️ **Multi-file drag & drop** — OS-level native drops
@@ -324,7 +330,7 @@ pnpm install
 pnpm tauri:dev
 ```
 
-On first run the Whisper `base.en` model (≈142 MB) is auto-downloaded from Hugging Face; progress is shown at the top of the project page.
+On first run the Whisper `base` multilingual model (≈142 MB) is auto-downloaded from Hugging Face; progress is shown at the top of the project page.
 
 ### Usage
 
@@ -335,7 +341,7 @@ On first run the Whisper `base.en` model (≈142 MB) is auto-downloaded from Hug
 
 ### Settings
 
-- **Whisper model**: tiny.en (75 MB) … large-v3 (2.9 GB) — bigger = more accurate, slower.
+- **Whisper model**: tiny (75 MB) … large-v3 (2.9 GB) — prefer multilingual models (no `.en` suffix); bigger = more accurate, slower.
 - **Translator**: MyMemory · LibreTranslate · *Disabled*.
 - **Endpoint** and **API key** (LibreTranslate): configurable.
 - **ffmpeg path**: custom path if not in `PATH`.
@@ -425,11 +431,11 @@ Signing is typically optional; AppImage supports GPG signatures if needed.
 ### Pipeline
 
 ```
-MediaFile
+MediaFile (any language: English, Japanese, French, Spanish, German, Russian…)
   └─▶ ffmpeg  : decode to 16 kHz mono f32 PCM
-        └─▶ Whisper ASR : segments[{start, end, text}]
-              ├─▶ translit.rs : English → Hangul phonetic
-              └─▶ translate.rs: English → Korean (async HTTP)
+        └─▶ Whisper ASR (auto language detect) : segments[{start, end, text}]
+              ├─▶ translit.rs : script detect → language phonetic rules → Hangul
+              └─▶ translate.rs: → Korean (async HTTP)
                     └─▶ SQLite write + `pipeline://event` stream
 ```
 
@@ -450,7 +456,7 @@ MediaFile
 - [x] Phase 1 UI shell — sidebar / dropzone / segment view
 - [x] Phase 2 Media player — seek / highlight sync
 - [x] Phase 3 ASR — whisper-rs + ffmpeg sidecar
-- [x] Phase 4 Transliteration — rule-based English → Hangul
+- [x] Phase 4 Transliteration — rule-based multilingual → Hangul (English, Japanese, French, Spanish, German, Russian)
 - [x] Phase 5 Translation — MyMemory / LibreTranslate
 - [x] Phase 6 Persistence — SQLite
 - [x] Phase 7 Packaging — bundle / entitlements / CI / GitHub Release

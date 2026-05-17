@@ -109,7 +109,7 @@ pub struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            whisper_model: "base.en".to_string(),
+            whisper_model: "base".to_string(),
             translate_endpoint: "https://api.mymemory.translated.net/get".to_string(),
             translate_api_key: None,
             translator: "mymemory".to_string(),

@@ -137,7 +137,7 @@ impl AsrEngine {
                 .map_err(|e| AppError::Whisper(e.to_string()))?;
             let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
             params.set_n_threads(num_cpus());
-            params.set_language(Some("en"));
+            params.set_language(None); // auto-detect: any language
             params.set_translate(false);
             params.set_print_progress(false);
             params.set_print_special(false);
