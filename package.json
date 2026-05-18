@@ -17,6 +17,7 @@
     "tauri:build:win": "tauri build --target x86_64-pc-windows-msvc",
     "tauri:build:linux": "tauri build --target x86_64-unknown-linux-gnu",
     "tauri:build:linux:arm": "tauri build --target aarch64-unknown-linux-gnu",
+    "tauri:build:all": "pnpm tauri:build:mac && pnpm tauri:build:win && pnpm tauri:build:linux && pnpm tauri:build:linux:arm",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

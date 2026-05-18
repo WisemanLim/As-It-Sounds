@@ -68,7 +68,7 @@ Tauri 2 · Rust · React 19 · TypeScript · Whisper.cpp
 00:10.440   00:13.140    C. Right around the corner.                  씨. 라이트 어라운드 더 코너.
 ```
 
-내부적으로 `cargo run --bin ais_test`(release) 호출 → ffmpeg PCM 추출 → Whisper 추론 → translit 음차.
+내부적으로 `cargo run --example ais_test`(release) 호출 → ffmpeg PCM 추출 → Whisper 추론 → translit 음차.
 
 ### 빠른 시작 (개발자)
 
@@ -76,7 +76,31 @@ Tauri 2 · Rust · React 19 · TypeScript · Whisper.cpp
 
 **macOS**
 ```bash
-brew install node pnpm rust cmake ffmpeg
+# Node / pnpm / cmake / ffmpeg
+brew install node pnpm cmake ffmpeg
+
+# Rust — rustup 권장 (크로스 컴파일 필수). Homebrew rust 는 단일 target만 지원.
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source "$HOME/.cargo/env"
+```
+
+> **이미 `brew install rust` 한 경우** — 크로스 컴파일 (Intel / Windows / Linux) 을 하려면 rustup 으로 교체:
+> ```bash
+> brew uninstall rust
+> curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+> source "$HOME/.cargo/env"
+> ```
+
+**크로스 컴파일 target 추가 (rustup 필수)**
+```bash
+# macOS Universal (ARM + Intel)
+rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+# Windows (MSVC) — Windows 호스트 또는 cargo-xwin 필요
+rustup target add x86_64-pc-windows-msvc
+
+# Linux — Linux 호스트 권장 (webkit2gtk 링크 때문)
+rustup target add x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu
 ```
 
 **Windows (PowerShell, 관리자 권한)**
@@ -159,6 +183,10 @@ pnpm tauri:build:win
 # Linux
 pnpm tauri:build:linux
 pnpm tauri:build:linux:arm
+
+# 모든 플랫폼 일괄 (macOS Universal + Windows + Linux x64/arm64)
+# 주의: 각 target 의 rustup 설치 필요. Win/Linux 는 보통 CI 또는 네이티브 호스트에서만 빌드 성공.
+pnpm tauri:build:all
 ```
 
 산출물은 `src-tauri/target/release/bundle/` 아래에 OS별로 생성됩니다:
@@ -237,8 +265,8 @@ pnpm tauri:build:win
     │       ├── settings.rs         # 설정 로드/저장
     │       ├── translate.rs        # 번역(MyMemory / LibreTranslate)
     │       └── translit.rs         # 다국어 → 한글 음차 (소리 기반 음운 규칙)
-    ├── src/bin/
-    │   └── ais_test.rs             # CLI 파이프라인 테스트 바이너리
+    ├── examples/
+    │   └── ais_test.rs             # CLI 파이프라인 테스트 예제 (cargo run --example ais_test)
     ├── capabilities/default.json   # Tauri capability allowlist
     ├── entitlements.plist          # macOS 샌드박스 / notarization
     └── tauri.conf.json
@@ -347,7 +375,7 @@ Sample output:
 00:10.440   00:13.140    C. Right around the corner.                  씨. 라이트 어라운드 더 코너.
 ```
 
-Internally invokes `cargo run --bin ais_test` (release) → ffmpeg PCM extract → Whisper inference → translit.
+Internally invokes `cargo run --example ais_test` (release) → ffmpeg PCM extract → Whisper inference → translit.
 
 ### Quick start (developers)
 
@@ -355,7 +383,31 @@ Internally invokes `cargo run --bin ais_test` (release) → ffmpeg PCM extract �
 
 **macOS**
 ```bash
-brew install node pnpm rust cmake ffmpeg
+# Node / pnpm / cmake / ffmpeg
+brew install node pnpm cmake ffmpeg
+
+# Rust — install via rustup (required for cross-compile). Homebrew rust supports only the host target.
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source "$HOME/.cargo/env"
+```
+
+> **If you already ran `brew install rust`** — replace it with rustup to enable cross-compilation (Intel / Windows / Linux):
+> ```bash
+> brew uninstall rust
+> curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+> source "$HOME/.cargo/env"
+> ```
+
+**Add cross-compile targets (rustup required)**
+```bash
+# macOS Universal (ARM + Intel)
+rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+# Windows (MSVC) — needs Windows host or cargo-xwin
+rustup target add x86_64-pc-windows-msvc
+
+# Linux — Linux host recommended (webkit2gtk linkage)
+rustup target add x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu
 ```
 
 **Windows (PowerShell as Administrator)**
@@ -435,6 +487,10 @@ pnpm tauri:build:win
 # Linux
 pnpm tauri:build:linux
 pnpm tauri:build:linux:arm
+
+# All platforms (macOS Universal + Windows + Linux x64/arm64)
+# Note: requires rustup targets installed for each. Win/Linux usually need CI or native host.
+pnpm tauri:build:all
 ```
 
 Artifacts are written to `src-tauri/target/release/bundle/`:

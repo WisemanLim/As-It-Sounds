@@ -37,6 +37,6 @@ echo ""
 
 cargo run \
     --manifest-path "$SCRIPT_DIR/src-tauri/Cargo.toml" \
-    --bin ais_test \
+    --example ais_test \
     --release \
     -- "$AUDIO" "$MODEL"
