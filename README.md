@@ -189,6 +189,23 @@ pnpm tauri:build:linux:arm
 pnpm tauri:build:all
 ```
 
+> **⚠️ 크로스컴파일 한계 (중요)**
+>
+> 본 프로젝트는 C/C++ 네이티브 의존성 (`whisper-rs`/whisper.cpp, `ring`, `rusqlite`) 을 사용. 다음은 사실상 불가:
+> - macOS → Windows MSVC (`pnpm tauri:build:win`): C++ 헤더 부재로 `ring`/`whisper-rs-sys`/`libsqlite3-sys` 빌드 실패
+> - macOS/Windows → Linux: webkit2gtk 링크 실패
+>
+> **권장 빌드 매트릭스:**
+>
+> | 호스트 | 빌드 가능 | 권장 명령 |
+> | :-- | :-- | :-- |
+> | macOS (Apple Silicon) | macOS ARM, macOS Intel, macOS Universal | `tauri:build:mac:arm` / `:intel` / `:mac` |
+> | Windows | Windows x64 | `tauri:build:win` |
+> | Linux x86_64 | Linux x64 | `tauri:build:linux` |
+> | Linux ARM64 | Linux arm64 | `tauri:build:linux:arm` |
+>
+> **모든 플랫폼 동시 빌드는 [GitHub Actions CI](.github/workflows/release.yml) 사용을 권장.** 태그 푸시(`git tag v0.1.0 && git push --tags`)로 자동 빌드/릴리스.
+
 산출물은 `src-tauri/target/release/bundle/` 아래에 OS별로 생성됩니다:
 - macOS: `.app`, `.dmg`
 - Windows: `.msi`, `.exe` (NSIS)
@@ -492,6 +509,23 @@ pnpm tauri:build:linux:arm
 # Note: requires rustup targets installed for each. Win/Linux usually need CI or native host.
 pnpm tauri:build:all
 ```
+
+> **⚠️ Cross-compilation limits (important)**
+>
+> This project depends on C/C++ native crates (`whisper-rs`/whisper.cpp, `ring`, `rusqlite`). The following is effectively **not supported**:
+> - macOS → Windows MSVC (`pnpm tauri:build:win`): C++ header absence breaks `ring`/`whisper-rs-sys`/`libsqlite3-sys`
+> - macOS/Windows → Linux: webkit2gtk linkage failure
+>
+> **Recommended build matrix:**
+>
+> | Host | Buildable | Command |
+> | :-- | :-- | :-- |
+> | macOS (Apple Silicon) | macOS ARM, macOS Intel, Universal | `tauri:build:mac:arm` / `:intel` / `:mac` |
+> | Windows | Windows x64 | `tauri:build:win` |
+> | Linux x86_64 | Linux x64 | `tauri:build:linux` |
+> | Linux ARM64 | Linux arm64 | `tauri:build:linux:arm` |
+>
+> **For all-platform builds use [GitHub Actions CI](.github/workflows/release.yml).** Push a tag (`git tag v0.1.0 && git push --tags`) to trigger auto build/release.
 
 Artifacts are written to `src-tauri/target/release/bundle/`:
 - macOS: `.app`, `.dmg`

@@ -387,11 +387,17 @@ A. 개발자 모드 CLI 도구:
 GitHub 저장소 클론 → `pnpm install` → `./test.sh <오디오>`.
 
 **Q. 모든 플랫폼 설치 파일을 한 번에 빌드?**
-A. 개발 환경에 모든 rustup target 설치 후:
-```bash
-pnpm tauri:build:all
-```
-주의: Windows 빌드는 Windows 호스트, Linux 빌드는 Linux 호스트에서만 안정. GitHub Actions CI 권장 (`.github/workflows/release.yml`).
+A. **각 플랫폼은 네이티브 호스트에서만 안정 빌드 가능.** 본 프로젝트는 C/C++ 네이티브 의존성 (whisper.cpp, ring, rusqlite) 때문에 크로스컴파일 사실상 불가:
+
+| 호스트 | 빌드 가능 |
+| :-- | :-- |
+| macOS | macOS ARM/Intel/Universal |
+| Windows | Windows x64 |
+| Linux | Linux x64/arm64 |
+
+`pnpm tauri:build:all` 은 모든 target 시도하나, 호스트 OS와 다른 target 은 실패. **GitHub Actions CI 권장** — 태그 푸시(`git tag v0.1.0 && git push --tags`) 시 macOS/Win/Linux 네이티브 러너에서 동시 빌드 후 자동 릴리스.
+
+대안: Windows VM (Parallels/UTM/VMware) 또는 Linux VM 에서 직접 빌드.
 
 ---
 
