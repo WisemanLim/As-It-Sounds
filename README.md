@@ -18,7 +18,8 @@ Tauri 2 · Rust · React 19 · TypeScript · Whisper.cpp
 
 **As It Sounds** 는 **어떤 언어**의 음성·영상 파일이든 로컬에서 **Whisper** 로 인식하고, 그 결과를 **실제 발음 그대로 한글 표기(음차)** 와 **한국어 번역** 으로 나란히 보여주는 데스크탑 앱입니다. 언어를 별도로 지정할 필요 없이 자동으로 감지합니다. 파일을 외부로 전송하지 않고 오프라인에서 동작하는 것이 기본이며, 번역만 선택적으로 외부 API(MyMemory, LibreTranslate)를 사용합니다.
 
-> 예: 영어 `As it sounds` → **애즈 잇 사운즈** → **들리는 대로**
+> 예: 영어 `A. I don't think we've received it.` → **에이. 아이 돈트 씽크 위브 리시브드 잇.**
+> 예: 영어 `C. Right around the corner.` → **씨. 라이트 어라운드 더 코너.**
 > 예: 일본어 `こんにちは` → **콩니치하**
 > 예: 프랑스어 `bonjour` → **봉주흐**
 > 예: 러시아어 `Москва` → **모스크바**
@@ -26,7 +27,11 @@ Tauri 2 · Rust · React 19 · TypeScript · Whisper.cpp
 ### 주요 기능
 
 - 🎙️ **완전 오프라인 ASR** — Whisper 다국어 모델(tiny/base/small/medium/large) 로컬 실행, **언어 자동 감지**
-- 🔤 **다국어 → 한글 음차** — 스크립트 자동 감지 후 언어별 발음 규칙 적용 (영어·일본어·프랑스어·스페인어·독일어·러시아어 등), Rust 네이티브 구현
+- 🔤 **소리 기반 음차 (사전 의존 X)** — 스크립트 자동 감지 + 음운 규칙으로 실제 발음 추출. 단어 의미 사전 매칭이 아닌 문맥 기반 발음 규칙:
+  - 단일 대문자 → 알파벳 이름 (A → 에이, B → 비)
+  - `c` 문맥 감지 (corner=코너, city=시티)
+  - 영어 `re-` 비강세, `-ed` 과거시제, `ei` 장모음, `we'` 축약, open syllable 장모음
+  - 일본어 가나 직접 매핑, 프랑스어 비음/묵음, 스페인어 jota, 독일어 움라우트, 키릴문자 음절 조립
 - 🌐 **한국어 번역** — MyMemory(무료, 키 불필요) 기본 / LibreTranslate 셀프호스트 지원
 - 🎧 **음성·영상 모두 지원** — MP3, WAV, M4A, FLAC, OGG, MP4, MOV, MKV, WEBM, AVI
 - 🖱️ **다중 파일 드래그앤드롭** — OS 레벨 네이티브 드롭
@@ -43,6 +48,27 @@ Tauri 2 · Rust · React 19 · TypeScript · Whisper.cpp
 | 디스크 | 500 MB + Whisper 모델(75 MB~3 GB) | 5 GB |
 | CPU | x86_64 / arm64 | Apple Silicon 또는 AVX2 |
 | 네트워크 | 모델 최초 다운로드 및 번역 시에만 필요 | — |
+
+### CLI 테스트 (음차 정확도 검증)
+
+샘플 음원을 빠르게 검증하는 CLI 파이프라인:
+
+```bash
+./test.sh .samples/01_19_04.mp3              # base 모델 (기본)
+./test.sh .samples/01_19_04.mp3 small        # small 모델 지정
+```
+
+출력 예시:
+```
+시작          종료          원문 (STT)                                  한글 음차
+─────────────────────────────────────────────────────────────────────────────
+00:00.000   00:04.540    Number 4. I sent the catering order to ...   넘버 4. 아이 센트 더 케이터잉 오더 ...
+00:04.540   00:07.700    A. I don't think we've received it.          에이. 아이 돈트 씽크 위브 리시브드 잇.
+00:07.700   00:10.440    B. They're out of order.                     비. 데어 아웃 오브 오더.
+00:10.440   00:13.140    C. Right around the corner.                  씨. 라이트 어라운드 더 코너.
+```
+
+내부적으로 `cargo run --bin ais_test`(release) 호출 → ffmpeg PCM 추출 → Whisper 추론 → translit 음차.
 
 ### 빠른 시작 (개발자)
 
@@ -210,10 +236,13 @@ pnpm tauri:build:win
     │       ├── pipeline.rs         # 파이프라인 오케스트레이션
     │       ├── settings.rs         # 설정 로드/저장
     │       ├── translate.rs        # 번역(MyMemory / LibreTranslate)
-    │       └── translit.rs         # 다국어 → 한글 음차 (스크립트 자동 감지)
+    │       └── translit.rs         # 다국어 → 한글 음차 (소리 기반 음운 규칙)
+    ├── src/bin/
+    │   └── ais_test.rs             # CLI 파이프라인 테스트 바이너리
     ├── capabilities/default.json   # Tauri capability allowlist
     ├── entitlements.plist          # macOS 샌드박스 / notarization
     └── tauri.conf.json
+└── test.sh                         # CLI 음차 검증 래퍼
 ```
 
 ### 파이프라인 흐름
@@ -244,7 +273,7 @@ MediaFile (영어·일본어·프랑스어·스페인어·독일어·러시아�
 - [x] Phase 1 UI 셸 — Sidebar / 드롭존 / 세그먼트 뷰
 - [x] Phase 2 미디어 플레이어 — 시크 / 하이라이트 동기화
 - [x] Phase 3 ASR 통합 — whisper-rs + ffmpeg 사이드카
-- [x] Phase 4 음차 — 다국어 → 한글 (영어·일본어·프랑스어·스페인어·독일어·러시아어), 스크립트 자동 감지
+- [x] Phase 4 음차 — 소리 기반 다국어 음운 규칙 (영어·일본어·프랑스어·스페인어·독일어·러시아어), 스크립트 자동 감지, CLI 검증 도구(`test.sh`)
 - [x] Phase 5 번역 — MyMemory / LibreTranslate
 - [x] Phase 6 영구화 — SQLite
 - [x] Phase 7 패키징 — 번들 / 엔타이틀먼트 / CI / GitHub Release
@@ -268,7 +297,8 @@ MIT — [LICENSE](LICENSE) 참조.
 
 **As It Sounds** is a desktop app that transcribes audio/video in **any language** locally with **Whisper** (auto language detection), converts each segment into **Korean phonetic Hangul exactly as it sounds**, and shows the **Korean translation** beside it. No language selection needed — the app detects and handles it automatically. It runs fully offline by default; only translation optionally calls an external HTTP API (MyMemory or LibreTranslate).
 
-> Example — English: `As it sounds` → **애즈 잇 사운즈** → **들리는 대로**
+> Example — English: `A. I don't think we've received it.` → **에이. 아이 돈트 씽크 위브 리시브드 잇.**
+> Example — English: `C. Right around the corner.` → **씨. 라이트 어라운드 더 코너.**
 > Example — Japanese: `こんにちは` → **콩니치하**
 > Example — French: `bonjour` → **봉주흐**
 > Example — Russian: `Москва` → **모스크바**
@@ -276,7 +306,11 @@ MIT — [LICENSE](LICENSE) 참조.
 ### Features
 
 - 🎙️ **Fully offline ASR** — Whisper multilingual (tiny/base/small/medium/large) runs locally with **automatic language detection**
-- 🔤 **Any language → Korean phonetic (Hangul)** — script-aware Rust transliterator: English, Japanese (kana), French, Spanish, German, Russian/Cyrillic and more
+- 🔤 **Sound-driven transliteration (not dictionary-driven)** — phonetic rules extract the actual sound, not the word's meaning. Context-aware:
+  - Single uppercase letter → letter name (A → 에이, B → 비)
+  - Context-sensitive `c` (corner=코너, city=시티)
+  - English unstressed `re-`, past-tense `-ed`, long `ei`, `we'` contractions, open-syllable long `a`
+  - Japanese kana direct mapping, French nasals & silent finals, Spanish jota, German umlauts, Cyrillic syllable assembly
 - 🌐 **Korean translation** — MyMemory (free, key-less) by default; LibreTranslate self-host supported
 - 🎧 **Audio & video** — MP3, WAV, M4A, FLAC, OGG, MP4, MOV, MKV, WEBM, AVI
 - 🖱️ **Multi-file drag & drop** — OS-level native drops
@@ -293,6 +327,27 @@ MIT — [LICENSE](LICENSE) 참조.
 | Disk | 500 MB + Whisper model (75 MB–3 GB) | 5 GB |
 | CPU | x86_64 / arm64 | Apple Silicon or AVX2 |
 | Network | Only for first-time model download & translation | — |
+
+### CLI test (transliteration accuracy)
+
+Quick pipeline test for verifying phonetic accuracy:
+
+```bash
+./test.sh .samples/01_19_04.mp3              # default model: base
+./test.sh .samples/01_19_04.mp3 small        # specify model
+```
+
+Sample output:
+```
+시작          종료          원문 (STT)                                  한글 음차
+─────────────────────────────────────────────────────────────────────────────
+00:00.000   00:04.540    Number 4. I sent the catering order to ...   넘버 4. 아이 센트 더 케이터잉 오더 ...
+00:04.540   00:07.700    A. I don't think we've received it.          에이. 아이 돈트 씽크 위브 리시브드 잇.
+00:07.700   00:10.440    B. They're out of order.                     비. 데어 아웃 오브 오더.
+00:10.440   00:13.140    C. Right around the corner.                  씨. 라이트 어라운드 더 코너.
+```
+
+Internally invokes `cargo run --bin ais_test` (release) → ffmpeg PCM extract → Whisper inference → translit.
 
 ### Quick start (developers)
 
@@ -456,7 +511,7 @@ MediaFile (any language: English, Japanese, French, Spanish, German, Russian…)
 - [x] Phase 1 UI shell — sidebar / dropzone / segment view
 - [x] Phase 2 Media player — seek / highlight sync
 - [x] Phase 3 ASR — whisper-rs + ffmpeg sidecar
-- [x] Phase 4 Transliteration — rule-based multilingual → Hangul (English, Japanese, French, Spanish, German, Russian)
+- [x] Phase 4 Transliteration — sound-driven multilingual phonetic rules (English, Japanese, French, Spanish, German, Russian), script auto-detect, CLI verifier (`test.sh`)
 - [x] Phase 5 Translation — MyMemory / LibreTranslate
 - [x] Phase 6 Persistence — SQLite
 - [x] Phase 7 Packaging — bundle / entitlements / CI / GitHub Release

@@ -438,6 +438,39 @@ fn rule_transliterate_en(word: &str) -> String {
             continue;
         }
 
+        // Word-initial unstressed "re-" prefix (e.g., receive/respect/return) → 리
+        if i == 0 && slice2 == "re" && n > 3 {
+            push_syllable(&mut out, 5, Vowel::I, NO_CODA);
+            pending = None;
+            i += 2;
+            continue;
+        }
+
+        // "we" + (end or apostrophe) → /wi:/ = 위 (covers "we", "we've", "we'll", "we're")
+        if slice2 == "we"
+            && (i + 2 == n || bytes.get(i + 2) == Some(&b'\''))
+        {
+            let o = pending.take().unwrap_or(11);
+            push_syllable(&mut out, o, Vowel::Wi, NO_CODA);
+            i += 2;
+            continue;
+        }
+
+        // "-ed" past-tense suffix at end of word (after consonant) → silent e + 드
+        if i + 2 == n
+            && bytes[i] == b'e'
+            && bytes[i + 1] == b'd'
+            && i > 0
+            && !is_vowel_char(bytes[i - 1] as char)
+        {
+            if let Some(p) = pending.take() {
+                push_syllable(&mut out, p, Vowel::Eu, NO_CODA);
+            }
+            push_syllable(&mut out, 3, Vowel::Eu, NO_CODA); // 드
+            i += 2;
+            continue;
+        }
+
         // Vowel digraphs
         match slice2 {
             "er" | "ir" | "ur" => {
@@ -464,7 +497,8 @@ fn rule_transliterate_en(word: &str) -> String {
                 i += 2;
                 continue;
             }
-            "ee" | "ea" => {
+            "ee" | "ea" | "ei" => {
+                // English "ei" (receive, ceiling) is most often long /i:/ → 이
                 let o = pending.take().unwrap_or(11);
                 push_syllable(&mut out, o, Vowel::I, NO_CODA);
                 i += 2;
@@ -604,11 +638,25 @@ fn rule_transliterate_en(word: &str) -> String {
         if is_vowel_char(c) {
             let vowel = match c {
                 'a' => {
+                    // Magic-e: "ate" pattern at end → long /eɪ/ → 에이
                     if i + 2 == n && bytes[i + 1] as char == 'e' {
                         let o = pending.take().unwrap_or(11);
                         push_syllable(&mut out, o, Vowel::E, NO_CODA);
                         push_syllable(&mut out, 11, Vowel::I, NO_CODA);
                         i += 2;
+                        continue;
+                    }
+                    // Open syllable: 'a' + single consonant + vowel → long /eɪ/
+                    // (catering, lady, baby, paper, table)
+                    if i + 2 < n
+                        && !is_vowel_char(bytes[i + 1] as char)
+                        && bytes[i + 1] != b'r'
+                        && is_vowel_char(bytes[i + 2] as char)
+                    {
+                        let o = pending.take().unwrap_or(11);
+                        push_syllable(&mut out, o, Vowel::E, NO_CODA);
+                        push_syllable(&mut out, 11, Vowel::I, NO_CODA);
+                        i += 1;
                         continue;
                     }
                     Vowel::A
@@ -651,6 +699,12 @@ fn rule_transliterate_en(word: &str) -> String {
         }
 
         if let Some(cons) = onset_for_en(c) {
+            // Context-sensitive: 'c' and 'g' sound depends on following vowel
+            let cons = match c {
+                'c' => if ch(i + 1).map(|n| matches!(n, 'e' | 'i' | 'y')).unwrap_or(false) { 9 } else { 15 },
+                'g' => if ch(i + 1).map(|n| matches!(n, 'e' | 'i')).unwrap_or(false) { 12 } else { 0 },
+                _ => cons,
+            };
             flush_pending(&mut pending, &mut out);
             if i + 1 == n {
                 if let Some(last) = out.pop() {
@@ -1205,7 +1259,10 @@ fn rule_transliterate_de(word: &str) -> String {
 static DICT: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
     #[rustfmt::skip]
     let entries: &[(&str, &str)] = &[
-        ("a","어"),("the","더"),("an","언"),("and","앤드"),("or","오어"),
+        // NOTE: "a" intentionally omitted — text "a" maps to different sounds
+        // (article /ə/ vs. letter /eɪ/). Rule-based + letter_name_ko (for uppercase)
+        // handles both cases sound-correctly.
+        ("the","더"),("an","언"),("and","앤드"),("or","오어"),
         ("but","벗"),("is","이즈"),("are","아"),("am","앰"),("was","워즈"),
         ("were","워"),("be","비"),("been","빈"),("being","비잉"),
         ("do","두"),("does","더즈"),("did","디드"),("done","던"),
@@ -1340,6 +1397,23 @@ static DICT: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
     map
 });
 
+// ─── English alphabet letter names ──────────────────────────────────────────
+
+fn letter_name_ko(c: char) -> Option<&'static str> {
+    match c.to_ascii_uppercase() {
+        'A' => Some("에이"), 'B' => Some("비"),  'C' => Some("씨"),
+        'D' => Some("디"),   'E' => Some("이"),   'F' => Some("에프"),
+        'G' => Some("지"),   'H' => Some("에이치"),'I' => Some("아이"),
+        'J' => Some("제이"), 'K' => Some("케이"), 'L' => Some("엘"),
+        'M' => Some("엠"),   'N' => Some("엔"),   'O' => Some("오"),
+        'P' => Some("피"),   'Q' => Some("큐"),   'R' => Some("아르"),
+        'S' => Some("에스"), 'T' => Some("티"),   'U' => Some("유"),
+        'V' => Some("브이"), 'W' => Some("더블유"),'X' => Some("엑스"),
+        'Y' => Some("와이"), 'Z' => Some("지"),
+        _ => None,
+    }
+}
+
 // ─── Latin token dispatch ─────────────────────────────────────────────────────
 
 fn split_punct(s: &str) -> (&str, &str, &str) {
@@ -1370,6 +1444,16 @@ fn transliterate_latin_token(token: &str, lang: LatinLang) -> String {
     };
     if core.is_empty() {
         return token.to_string();
+    }
+    // Single uppercase letter → Korean letter name (e.g., "A." → "에이.", "B)" → "비)")
+    if core.len() == 1 {
+        if let Some(ch) = core.chars().next() {
+            if ch.is_ascii_uppercase() {
+                if let Some(name) = letter_name_ko(ch) {
+                    return format!("{prefix}{name}{suffix}");
+                }
+            }
+        }
     }
     let lower = core.to_ascii_lowercase();
     let han = match lang {
@@ -1533,5 +1617,97 @@ mod tests {
     fn hangul_passthrough() {
         let s = "안녕하세요";
         assert_eq!(transliterate(s), s);
+    }
+
+    #[test]
+    fn hard_c_corner() {
+        // 'c' before 'o' → ㅋ (not ㅊ)
+        let out = rule_transliterate_en("corner");
+        assert!(out.starts_with('코'), "corner should start with 코, got: {out}");
+    }
+
+    #[test]
+    fn soft_c_city() {
+        // 'c' before 'i' → ㅅ
+        let out = rule_transliterate_en("city");
+        assert!(out.starts_with('시'), "city should start with 시, got: {out}");
+    }
+
+    #[test]
+    fn letter_name_a() {
+        // Uppercase single letter → Korean letter name
+        let out = transliterate_latin_token("A.", LatinLang::English);
+        assert_eq!(out, "에이.", "got: {out}");
+    }
+
+    #[test]
+    fn letter_name_b() {
+        let out = transliterate_latin_token("B.", LatinLang::English);
+        assert_eq!(out, "비.", "got: {out}");
+    }
+
+    #[test]
+    fn letter_name_c() {
+        let out = transliterate_latin_token("C.", LatinLang::English);
+        assert_eq!(out, "씨.", "got: {out}");
+    }
+
+    #[test]
+    fn choice_sentence() {
+        // Simulates TOEIC answer choice transcription
+        let out = transliterate("C. Right around the corner.");
+        assert!(out.starts_with("씨."), "got: {out}");
+        assert!(out.contains("코너"), "corner should be 코너, got: {out}");
+    }
+
+    #[test]
+    fn weve_contraction() {
+        // "we've" should sound-map to 위브 (long /wi:v/), not 에브
+        let out = rule_transliterate_en("we've");
+        assert!(out.starts_with("위"), "we've should start with 위, got: {out}");
+    }
+
+    #[test]
+    fn ei_long_e() {
+        // English "ei" (receive, deceive) → /i:/ = 이
+        let out = rule_transliterate_en("receive");
+        assert!(out.contains("시"), "receive should contain 시 (long e), got: {out}");
+    }
+
+    #[test]
+    fn ed_suffix() {
+        // Past-tense -ed at end → silent e + 드
+        let out = rule_transliterate_en("received");
+        assert!(out.ends_with("드"), "received should end with 드, got: {out}");
+    }
+
+    #[test]
+    fn re_prefix() {
+        // Word-initial "re-" → 리 (unstressed long e)
+        let out = rule_transliterate_en("received");
+        assert!(out.starts_with("리"), "received should start with 리, got: {out}");
+    }
+
+    #[test]
+    fn lowercase_a_no_dict() {
+        // Lowercase "a" (article) goes through phonetic rules, not dictionary lookup
+        let out = rule_transliterate_en("a");
+        assert!(!out.is_empty(), "got: {out}");
+    }
+
+    #[test]
+    fn open_syllable_long_a() {
+        // Open syllable 'a' + C + V → long /eɪ/ = 에이
+        let out = rule_transliterate_en("catering");
+        assert!(out.starts_with("케이"), "catering should start with 케이, got: {out}");
+    }
+
+    #[test]
+    fn full_sample_sentence() {
+        // Full TOEIC-style sample: "A. I don't think we've received it."
+        let out = transliterate("A. I don't think we've received it.");
+        assert!(out.starts_with("에이."), "got: {out}");
+        assert!(out.contains("위브"), "we've should be 위브, got: {out}");
+        assert!(out.contains("리시브드"), "received should be 리시브드, got: {out}");
     }
 }
