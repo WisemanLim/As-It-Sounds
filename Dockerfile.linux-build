@@ -1,0 +1,42 @@
+# As It Sounds — Linux build container
+# Builds .deb / .rpm / .AppImage for x86_64 or aarch64 Linux without CI.
+#
+# Usage (Linux x64):
+#   docker buildx build --platform linux/amd64 -t ais-linux-build -f Dockerfile.linux-build .
+#   docker run --rm -v "$(pwd)":/work --platform linux/amd64 ais-linux-build
+#
+# Usage (Linux arm64, native on Apple Silicon hosts):
+#   docker buildx build --platform linux/arm64 -t ais-linux-arm-build -f Dockerfile.linux-build .
+#   docker run --rm -v "$(pwd)":/work --platform linux/arm64 ais-linux-arm-build \
+#     bash -c "pnpm install && pnpm tauri:build:linux:arm"
+#
+# Artifacts land in ./src-tauri/target/<triple>/release/bundle/{deb,rpm,appimage}/
+
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# System deps: webkit2gtk (Tauri WebView), build tools, ffmpeg (runtime + bindgen),
+# cmake (whisper.cpp), patchelf (AppImage / .deb)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates curl git \
+        build-essential pkg-config cmake patchelf \
+        libwebkit2gtk-4.1-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev \
+        libappindicator3-dev librsvg2-dev libssl-dev \
+        ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Node.js 20 + pnpm
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y --no-install-recommends nodejs && \
+    npm install -g pnpm@10 && \
+    rm -rf /var/lib/apt/lists/*
+
+# Rust (rustup) — picks the container's native target automatically
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+WORKDIR /work
+
+# Default: x86_64 Linux build. Override via `docker run ... <cmd>` for arm64.
+CMD ["bash", "-c", "pnpm install --frozen-lockfile && pnpm tauri:build:linux"]

@@ -206,6 +206,118 @@ pnpm tauri:build:all
 >
 > **모든 플랫폼 동시 빌드는 [GitHub Actions CI](.github/workflows/release.yml) 사용을 권장.** 태그 푸시(`git tag v0.1.0 && git push --tags`)로 자동 빌드/릴리스.
 
+### CI 없이 멀티플랫폼 빌드 (호스트별 가이드)
+
+각 OS 빌드는 **해당 OS 의 네이티브 환경 (VM/실기/컨테이너)** 에서 수행. 호스트가 macOS 라면 macOS 만 직접 빌드 가능, 나머지는 아래 방식 중 선택.
+
+#### A. Windows x64 빌드
+
+| 방식 | 호스트 | 비고 |
+| :-- | :-- | :-- |
+| **Parallels Desktop + Windows 11** | macOS (ARM/Intel) | 가장 안정. Windows 11 ARM 또는 x64. 라이선스 필요 |
+| **UTM + Windows 11 ARM** | macOS (Apple Silicon) | 무료. ISO 다운로드 [microsoft.com/software-download/windows11arm64](https://www.microsoft.com/software-download/windows11) |
+| **VMware Fusion** | macOS | Personal Use 무료 |
+| **Boot Camp** | macOS (Intel만) | Apple Silicon 불가 |
+| **물리 Windows PC** | 별도 머신 | 가장 빠름 |
+
+**VM 내부 셋업 (Windows 11, PowerShell 관리자):**
+```powershell
+# 1. 패키지 매니저 (winget 기본 포함, Win 11)
+winget install OpenJS.NodeJS.LTS pnpm.pnpm Rustlang.Rustup Kitware.CMake Gyan.FFmpeg Git.Git
+# 2. Visual Studio C++ Build Tools (필수, ring/whisper.cpp/rusqlite 빌드용)
+winget install Microsoft.VisualStudio.2022.BuildTools --override "--add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+# 3. WebView2 (Win 11 기본 포함, Win 10 만 필요)
+# winget install Microsoft.EdgeWebView2Runtime
+# 4. 재부팅 후
+git clone https://github.com/WisemanLim/As-It-Sounds.git
+cd As-It-Sounds
+pnpm install
+pnpm tauri:build:win
+```
+**산출물:** `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\msi\As It Sounds_0.1.0_x64_en-US.msi` 와 `nsis\*.exe`
+
+#### B. Linux x64 빌드
+
+| 방식 | 호스트 | 비고 |
+| :-- | :-- | :-- |
+| **Docker 컨테이너 (권장)** | 모든 호스트 | 격리, 재현 가능. 호스트에 Docker Desktop 또는 OrbStack 필요 |
+| **UTM + Ubuntu 22.04 x64** | macOS | qemu 에뮬레이션 (Apple Silicon 에서 x86_64 게스트는 느림) |
+| **Multipass** | 모든 호스트 | 경량 Ubuntu VM. `brew install multipass` |
+| **Parallels + Ubuntu** | macOS | 빠름. 라이선스 필요 |
+| **물리 Linux PC** | 별도 머신 | 가장 빠름 |
+
+**Docker 빌드 (가장 빠른 경로):**
+
+`Dockerfile.linux-build` (프로젝트 루트):
+```dockerfile
+FROM ubuntu:22.04
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y \
+    curl build-essential pkg-config cmake ffmpeg git \
+    libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+# Node 20 + pnpm
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs && \
+    npm install -g pnpm@10
+# Rust
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+WORKDIR /work
+CMD ["bash", "-c", "pnpm install && pnpm tauri:build:linux"]
+```
+
+실행:
+```bash
+docker buildx build --platform linux/amd64 -t ais-linux-build -f Dockerfile.linux-build .
+docker run --rm -v "$(pwd)":/work --platform linux/amd64 ais-linux-build
+# 산출물: ./src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/{deb,rpm,appimage}/
+```
+
+> Apple Silicon 호스트에서 amd64 컨테이너 = qemu 에뮬레이션 → 매우 느림 (10~30분). 가능하면 native Linux 또는 GitHub Codespaces 사용.
+
+#### C. Linux ARM64 빌드 (aarch64)
+
+| 방식 | 호스트 | 비고 |
+| :-- | :-- | :-- |
+| **Docker buildx (ARM64 컨테이너)** | Apple Silicon | **네이티브 속도** (Mac arm64 = Linux arm64 호환). 가장 빠름 |
+| **UTM + Ubuntu 22.04 arm64** | macOS Apple Silicon | KVM 가속, 거의 네이티브 속도 |
+| **Asahi Linux 듀얼부팅** | Apple Silicon | 최고 성능. 설치 부담 |
+| **Raspberry Pi 4/5 (8GB)** | 별도 기기 | 실기. 컴파일 시간 길음 (whisper.cpp 빌드 무거움) |
+
+**Docker 빌드 (Apple Silicon → Linux ARM64, 네이티브 속도):**
+```bash
+docker buildx build --platform linux/arm64 -t ais-linux-arm-build -f Dockerfile.linux-build .
+docker run --rm -v "$(pwd)":/work --platform linux/arm64 ais-linux-arm-build \
+  bash -c "pnpm install && pnpm tauri:build:linux:arm"
+# 산출물: ./src-tauri/target/aarch64-unknown-linux-gnu/release/bundle/{deb,rpm,appimage}/
+```
+
+#### D. macOS Intel 빌드 (Apple Silicon 호스트)
+
+```bash
+rustup target add x86_64-apple-darwin
+pnpm tauri:build:mac:intel
+# 산출물: src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/As It Sounds_0.1.0_x64.dmg
+```
+
+#### E. macOS Universal (ARM + Intel)
+
+```bash
+rustup target add aarch64-apple-darwin x86_64-apple-darwin
+pnpm tauri:build:mac
+# 산출물: src-tauri/target/universal-apple-darwin/release/bundle/dmg/As It Sounds_0.1.0_universal.dmg
+```
+
+#### F. VM/컨테이너 ↔ 호스트 파일 전송
+
+| 방법 | 명령 |
+| :-- | :-- |
+| **Parallels 공유 폴더** | macOS Documents 자동 마운트 — `\\Mac\Home\Documents` (Win), `/media/psf/Home` (Linux) |
+| **UTM SPICE 공유** | VM 설정 → Sharing → Directory Share |
+| **scp** | `scp user@vm-ip:/path/to/installer.msi ~/Downloads/` |
+| **Docker 볼륨 마운트** | `-v "$(pwd)":/work` 로 자동 (위 예제 참조) |
+
+---
+
 산출물은 `src-tauri/target/release/bundle/` 아래에 OS별로 생성됩니다:
 - macOS: `.app`, `.dmg`
 - Windows: `.msi`, `.exe` (NSIS)
@@ -526,6 +638,118 @@ pnpm tauri:build:all
 > | Linux ARM64 | Linux arm64 | `tauri:build:linux:arm` |
 >
 > **For all-platform builds use [GitHub Actions CI](.github/workflows/release.yml).** Push a tag (`git tag v0.1.0 && git push --tags`) to trigger auto build/release.
+
+### Multi-platform builds without CI (host-by-host)
+
+Each OS build must run on a **native environment for that OS** (VM, real machine, or container). From a macOS host, only macOS targets build directly; others require one of the methods below.
+
+#### A. Windows x64 build
+
+| Method | Host | Notes |
+| :-- | :-- | :-- |
+| **Parallels Desktop + Windows 11** | macOS (ARM/Intel) | Most stable. Windows 11 ARM or x64. Requires license |
+| **UTM + Windows 11 ARM** | macOS (Apple Silicon) | Free. ISO at [microsoft.com](https://www.microsoft.com/software-download/windows11) |
+| **VMware Fusion** | macOS | Free for Personal Use |
+| **Boot Camp** | macOS (Intel only) | Not available on Apple Silicon |
+| **Physical Windows PC** | Separate box | Fastest |
+
+**Inside the VM (Windows 11, PowerShell as Administrator):**
+```powershell
+# 1. Package manager (winget built in to Win 11)
+winget install OpenJS.NodeJS.LTS pnpm.pnpm Rustlang.Rustup Kitware.CMake Gyan.FFmpeg Git.Git
+# 2. Visual Studio C++ Build Tools (required for ring/whisper.cpp/rusqlite)
+winget install Microsoft.VisualStudio.2022.BuildTools --override "--add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+# 3. WebView2 (bundled in Win 11; install only on Win 10)
+# winget install Microsoft.EdgeWebView2Runtime
+# 4. Reboot, then:
+git clone https://github.com/WisemanLim/As-It-Sounds.git
+cd As-It-Sounds
+pnpm install
+pnpm tauri:build:win
+```
+**Artifacts:** `src-tauri\target\x86_64-pc-windows-msvc\release\bundle\msi\As It Sounds_0.1.0_x64_en-US.msi` and `nsis\*.exe`
+
+#### B. Linux x64 build
+
+| Method | Host | Notes |
+| :-- | :-- | :-- |
+| **Docker container (recommended)** | Any host | Isolated, reproducible. Requires Docker Desktop or OrbStack |
+| **UTM + Ubuntu 22.04 x64** | macOS | qemu emulation (slow on Apple Silicon → x86_64 guest) |
+| **Multipass** | Any host | Lightweight Ubuntu VM. `brew install multipass` |
+| **Parallels + Ubuntu** | macOS | Fast. License required |
+| **Physical Linux box** | Separate | Fastest |
+
+**Docker build (fastest path):**
+
+`Dockerfile.linux-build` (project root):
+```dockerfile
+FROM ubuntu:22.04
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y \
+    curl build-essential pkg-config cmake ffmpeg git \
+    libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+# Node 20 + pnpm
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs && \
+    npm install -g pnpm@10
+# Rust
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+WORKDIR /work
+CMD ["bash", "-c", "pnpm install && pnpm tauri:build:linux"]
+```
+
+Run:
+```bash
+docker buildx build --platform linux/amd64 -t ais-linux-build -f Dockerfile.linux-build .
+docker run --rm -v "$(pwd)":/work --platform linux/amd64 ais-linux-build
+# Artifacts: ./src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/{deb,rpm,appimage}/
+```
+
+> On Apple Silicon, an amd64 container runs under qemu emulation → very slow (10–30 min). Prefer a native Linux box or GitHub Codespaces.
+
+#### C. Linux ARM64 build (aarch64)
+
+| Method | Host | Notes |
+| :-- | :-- | :-- |
+| **Docker buildx (ARM64 container)** | Apple Silicon | **Native speed** (Mac arm64 = Linux arm64). Fastest |
+| **UTM + Ubuntu 22.04 arm64** | macOS Apple Silicon | KVM accelerated, near-native |
+| **Asahi Linux dual-boot** | Apple Silicon | Best performance. Heavier setup |
+| **Raspberry Pi 4/5 (8 GB)** | Separate device | Real hardware. Long compile time (whisper.cpp is heavy) |
+
+**Docker build (Apple Silicon → Linux ARM64, native speed):**
+```bash
+docker buildx build --platform linux/arm64 -t ais-linux-arm-build -f Dockerfile.linux-build .
+docker run --rm -v "$(pwd)":/work --platform linux/arm64 ais-linux-arm-build \
+  bash -c "pnpm install && pnpm tauri:build:linux:arm"
+# Artifacts: ./src-tauri/target/aarch64-unknown-linux-gnu/release/bundle/{deb,rpm,appimage}/
+```
+
+#### D. macOS Intel build (from Apple Silicon host)
+
+```bash
+rustup target add x86_64-apple-darwin
+pnpm tauri:build:mac:intel
+# Artifact: src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/As It Sounds_0.1.0_x64.dmg
+```
+
+#### E. macOS Universal (ARM + Intel)
+
+```bash
+rustup target add aarch64-apple-darwin x86_64-apple-darwin
+pnpm tauri:build:mac
+# Artifact: src-tauri/target/universal-apple-darwin/release/bundle/dmg/As It Sounds_0.1.0_universal.dmg
+```
+
+#### F. Move artifacts from VM/container to host
+
+| Method | Command |
+| :-- | :-- |
+| **Parallels shared folder** | macOS Documents auto-mounted — `\\Mac\Home\Documents` (Win), `/media/psf/Home` (Linux) |
+| **UTM SPICE share** | VM settings → Sharing → Directory Share |
+| **scp** | `scp user@vm-ip:/path/to/installer.msi ~/Downloads/` |
+| **Docker volume mount** | `-v "$(pwd)":/work` (already wired up in examples above) |
+
+---
 
 Artifacts are written to `src-tauri/target/release/bundle/`:
 - macOS: `.app`, `.dmg`
