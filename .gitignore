@@ -45,3 +45,6 @@ models/
 # samples
 .samples
 .omc/**
+
+# web-server
+web-server/target
