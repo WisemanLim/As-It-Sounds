@@ -1,38 +1,12 @@
 import { useCallback, useState } from "react";
 import { IconUpload, IconAudio, IconVideo } from "./icons";
 import { cn } from "../lib/cn";
-import { detectKind } from "../store/useAppStore";
-
-export interface DroppedFile {
-  name: string;
-  path: string;
-  kind: "audio" | "video";
-  sizeBytes?: number;
-}
+import { isAllowedMediaName, type PickedMedia } from "../lib/filePicker";
 
 interface DropZoneProps {
-  onFiles: (files: DroppedFile[]) => void;
+  onFiles: (picked: PickedMedia) => void;
   onPick?: () => void;
   compact?: boolean;
-}
-
-const ALLOWED_EXTS = [
-  "mp3",
-  "wav",
-  "m4a",
-  "flac",
-  "ogg",
-  "mp4",
-  "mov",
-  "mkv",
-  "webm",
-  "avi",
-  "m4v",
-];
-
-function isAllowed(name: string) {
-  const ext = name.split(".").pop()?.toLowerCase();
-  return !!ext && ALLOWED_EXTS.includes(ext);
 }
 
 export function DropZone({ onFiles, onPick, compact }: DropZoneProps) {
@@ -40,18 +14,12 @@ export function DropZone({ onFiles, onPick, compact }: DropZoneProps) {
 
   const handleFiles = useCallback(
     (fileList: FileList | File[]) => {
-      const picked: DroppedFile[] = [];
+      const picked: File[] = [];
       for (const f of Array.from(fileList)) {
-        if (!isAllowed(f.name)) continue;
-        const anyFile = f as File & { path?: string };
-        picked.push({
-          name: f.name,
-          path: anyFile.path ?? f.name,
-          kind: detectKind(f.name),
-          sizeBytes: f.size,
-        });
+        if (!isAllowedMediaName(f.name)) continue;
+        picked.push(f);
       }
-      if (picked.length > 0) onFiles(picked);
+      if (picked.length > 0) onFiles({ mode: "files", files: picked });
     },
     [onFiles],
   );

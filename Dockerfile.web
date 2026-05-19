@@ -1,0 +1,47 @@
+# syntax=docker/dockerfile:1.7
+# Backend image — Rust axum web server that reuses the desktop core
+# (whisper-rs + ffmpeg + translit). Two stages: build, then a slim runtime
+# image that bundles ffmpeg.
+
+FROM rust:1.90-bookworm AS builder
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      cmake build-essential pkg-config clang libclang-dev git \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+# web-server uses `#[path = "../src-tauri/src/core/*.rs"]` so we need both
+# trees in the build context.
+COPY web-server ./web-server
+COPY src-tauri ./src-tauri
+
+WORKDIR /build/web-server
+
+# whisper.cpp emits arm64 `-mcpu` feature modifiers (`+nodotprod` etc.) that
+# GCC 12 on bookworm can't parse — clang handles them cleanly.
+ENV CC=clang \
+    CXX=clang++
+
+# Cargo.lock is not committed for the web-server crate yet — let Cargo
+# resolve on first build. Subsequent builds reuse the cache layer.
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/build/web-server/target \
+    cargo build --release && \
+    cp target/release/as-it-sounds-web /usr/local/bin/as-it-sounds-web
+
+
+FROM debian:bookworm-slim AS runtime
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ffmpeg ca-certificates libgomp1 \
+  && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /usr/local/bin/as-it-sounds-web /usr/local/bin/as-it-sounds-web
+
+ENV AIS_DATA_DIR=/data \
+    AIS_BIND=0.0.0.0:8080 \
+    RUST_LOG=info
+
+EXPOSE 8080
+VOLUME ["/data"]
+
+CMD ["/usr/local/bin/as-it-sounds-web"]

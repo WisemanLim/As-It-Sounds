@@ -1,8 +1,12 @@
+// Window-level file drop handler for the Tauri webview.
+// On web this hook is a no-op — the browser `DropZone` element handles HTML5
+// drag/drop directly there.
+
 import { useEffect, useRef } from "react";
-import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { stat } from "@tauri-apps/plugin-fs";
 import type { NewFileInput } from "../types";
 import { detectKind } from "../store/useAppStore";
+import { isTauri } from "../lib/env";
+import type { PickedMedia } from "../lib/filePicker";
 
 const EXTS = new Set([
   "mp3",
@@ -23,7 +27,8 @@ function baseName(p: string): string {
   return p.split(sep).pop() || p;
 }
 
-async function toInputs(paths: string[]): Promise<NewFileInput[]> {
+async function tauriPathsToInputs(paths: string[]): Promise<NewFileInput[]> {
+  const { stat } = await import("@tauri-apps/plugin-fs");
   const out: NewFileInput[] = [];
   for (const p of paths) {
     const name = baseName(p);
@@ -42,20 +47,21 @@ async function toInputs(paths: string[]): Promise<NewFileInput[]> {
 }
 
 export function useTauriDrop(
-  onFiles: (inputs: NewFileInput[]) => void,
+  onDrop: (picked: PickedMedia) => void,
   onHover?: (hovering: boolean) => void,
 ) {
-  const onFilesRef = useRef(onFiles);
+  const onDropRef = useRef(onDrop);
   const onHoverRef = useRef(onHover);
 
   useEffect(() => {
-    onFilesRef.current = onFiles;
-  }, [onFiles]);
+    onDropRef.current = onDrop;
+  }, [onDrop]);
   useEffect(() => {
     onHoverRef.current = onHover;
   }, [onHover]);
 
   useEffect(() => {
+    if (!isTauri) return;
     let disposed = false;
     let unlisten: (() => void) | null = null;
     const safeUnlisten = (fn: (() => void) | null) => {
@@ -63,13 +69,12 @@ export function useTauriDrop(
       try {
         fn();
       } catch (e) {
-        // Tauri event registry throws if the listener was already removed
-        // (e.g. under StrictMode double-mount); swallowing is intentional.
         console.debug("drop listener already unregistered", e);
       }
     };
     const setup = async () => {
       try {
+        const { getCurrentWebview } = await import("@tauri-apps/api/webview");
         const u = await getCurrentWebview().onDragDropEvent(async (event) => {
           if (disposed) return;
           const payload = event.payload as unknown as {
@@ -82,8 +87,9 @@ export function useTauriDrop(
             onHoverRef.current?.(false);
           } else if (payload.type === "drop") {
             onHoverRef.current?.(false);
-            const inputs = await toInputs(payload.paths ?? []);
-            if (inputs.length > 0) onFilesRef.current(inputs);
+            const inputs = await tauriPathsToInputs(payload.paths ?? []);
+            if (inputs.length > 0)
+              onDropRef.current({ mode: "paths", inputs });
           }
         });
         if (disposed) {

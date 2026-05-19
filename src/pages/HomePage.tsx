@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { DropZone } from "../components/DropZone";
 import { useAppStore } from "../store/useAppStore";
 import { IconPlus, IconSparkles } from "../components/icons";
-import { pickMediaFiles } from "../lib/filePicker";
+import { pickMediaFiles, type PickedMedia } from "../lib/filePicker";
 import { useTauriDrop } from "../hooks/useTauriDrop";
 import toast from "../lib/toast";
 
@@ -21,25 +21,37 @@ export function HomePage() {
     }
   };
 
+  const startWithPicked = async (picked: PickedMedia) => {
+    const isEmpty =
+      picked.mode === "paths" ? picked.inputs.length === 0 : picked.files.length === 0;
+    if (isEmpty) return;
+    const p = await createProject();
+    await addFiles(p.id, picked);
+    navigate(`/projects/${p.id}`);
+  };
+
   const handlePick = async () => {
     try {
       const picked = await pickMediaFiles();
-      if (picked.length === 0) return;
-      const p = await createProject();
-      await addFiles(p.id, picked);
-      navigate(`/projects/${p.id}`);
+      await startWithPicked(picked);
     } catch (e) {
       console.error("handlePick failed", e);
       toast(`파일 추가 실패: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
 
-  useTauriDrop(async (inputs) => {
-    if (inputs.length === 0) return;
+  const handleDropZoneFiles = async (picked: PickedMedia) => {
     try {
-      const p = await createProject();
-      await addFiles(p.id, inputs);
-      navigate(`/projects/${p.id}`);
+      await startWithPicked(picked);
+    } catch (e) {
+      console.error("dropzone files failed", e);
+      toast(`파일 추가 실패: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
+  useTauriDrop(async (picked) => {
+    try {
+      await startWithPicked(picked);
     } catch (e) {
       console.error("drop create project failed", e);
     }
@@ -64,7 +76,7 @@ export function HomePage() {
           </p>
         </div>
 
-        <DropZone onFiles={handlePick} onPick={handlePick} />
+        <DropZone onFiles={handleDropZoneFiles} onPick={handlePick} />
 
         <div className="flex justify-center">
           <button className="btn-outline" onClick={handleCreate}>

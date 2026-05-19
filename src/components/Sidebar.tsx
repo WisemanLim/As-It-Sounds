@@ -1,7 +1,15 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { confirm as tauriConfirm } from "@tauri-apps/plugin-dialog";
 import { useAppStore } from "../store/useAppStore";
+import { isTauri } from "../lib/env";
+
+async function confirmDialog(message: string, title: string): Promise<boolean> {
+  if (isTauri) {
+    const { confirm } = await import("@tauri-apps/plugin-dialog");
+    return confirm(message, { title, kind: "warning" });
+  }
+  return window.confirm(message);
+}
 import {
   IconMenu,
   IconPlus,
@@ -132,9 +140,9 @@ export function Sidebar() {
                       onClick={async (e) => {
                         e.stopPropagation();
                         try {
-                          const ok = await tauriConfirm(
+                          const ok = await confirmDialog(
                             `"${p.name}" 프로젝트를 삭제할까요? 이 작업은 되돌릴 수 없습니다.`,
-                            { title: "프로젝트 삭제", kind: "warning" },
+                            "프로젝트 삭제",
                           );
                           if (ok) {
                             await deleteProject(p.id);

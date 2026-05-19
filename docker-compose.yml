@@ -1,0 +1,93 @@
+# As It Sounds — Web deployment
+#
+# Topology:
+#   nginx-proxy ──┐
+#                 ├─▶ frontend (SPA + /api proxy)  ──▶ backend (axum + Whisper)
+#   acme ─────────┘
+#
+# nginx-proxy + acme-companion auto-issue and renew Let's Encrypt certs
+# based on the VIRTUAL_HOST / LETSENCRYPT_HOST labels on each app container.
+# All TLS terminates at the edge — internal traffic is plain HTTP on the
+# `ais-proxy` network.
+
+services:
+  nginx-proxy:
+    image: nginxproxy/nginx-proxy:1.6
+    container_name: ais-nginx-proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      CLIENT_MAX_BODY_SIZE: ${CLIENT_MAX_BODY_SIZE:-4096m}
+      DEFAULT_HOST: ${DOMAIN}
+    volumes:
+      - certs:/etc/nginx/certs
+      - vhost:/etc/nginx/vhost.d
+      - html:/usr/share/nginx/html
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+    networks:
+      - proxy
+
+  acme:
+    image: nginxproxy/acme-companion:2.5
+    container_name: ais-acme
+    restart: unless-stopped
+    depends_on:
+      - nginx-proxy
+    environment:
+      DEFAULT_EMAIL: ${LETSENCRYPT_EMAIL}
+      NGINX_PROXY_CONTAINER: ais-nginx-proxy
+    volumes:
+      - certs:/etc/nginx/certs
+      - vhost:/etc/nginx/vhost.d
+      - html:/usr/share/nginx/html
+      - acme:/etc/acme.sh
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - proxy
+
+  backend:
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    container_name: ais-backend
+    restart: unless-stopped
+    environment:
+      AIS_DATA_DIR: /data
+      AIS_BIND: 0.0.0.0:8080
+      AIS_MAX_UPLOAD_MB: ${AIS_MAX_UPLOAD_MB:-2048}
+      RUST_LOG: ${RUST_LOG:-info}
+    volumes:
+      - ais-data:/data
+    networks:
+      - proxy
+    # No VIRTUAL_HOST — backend is reached only via the frontend nginx.
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.web-frontend
+    container_name: ais-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      VIRTUAL_HOST: ${DOMAIN}
+      VIRTUAL_PORT: "80"
+      LETSENCRYPT_HOST: ${DOMAIN}
+      LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL}
+    networks:
+      - proxy
+
+volumes:
+  certs:
+  vhost:
+  html:
+  acme:
+  ais-data:
+
+networks:
+  proxy:
+    name: ais-proxy

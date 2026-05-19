@@ -8,7 +8,7 @@ import { IconPlus, IconSparkles } from "../components/icons";
 import { useAppStore } from "../store/useAppStore";
 import { usePipelineStore } from "../store/usePipelineStore";
 import { ipc } from "../ipc/client";
-import { pickMediaFiles, srcForPath } from "../lib/filePicker";
+import { pickMediaFiles } from "../lib/filePicker";
 import { useTauriDrop } from "../hooks/useTauriDrop";
 
 export function ProjectPage() {
@@ -64,10 +64,10 @@ export function ProjectPage() {
     });
   }, [id, setActiveProject]);
 
-  useTauriDrop(async (inputs) => {
-    if (!id || inputs.length === 0) return;
+  useTauriDrop(async (picked) => {
+    if (!id) return;
     try {
-      const created = await addFiles(id, inputs);
+      const created = await addFiles(id, picked);
       if (created.length > 0) await setActiveFile(created[0].id);
     } catch (e) {
       console.error("drop add files failed", e);
@@ -85,13 +85,23 @@ export function ProjectPage() {
   const handlePick = async () => {
     try {
       const picked = await pickMediaFiles();
-      if (picked.length === 0) return;
       const created = await addFiles(project.id, picked);
       if (created.length > 0 && !activeFileId) {
         await setActiveFile(created[0].id);
       }
     } catch (e) {
       console.error("handlePick failed", e);
+    }
+  };
+
+  const handleDropZoneFiles = async (picked: import("../lib/filePicker").PickedMedia) => {
+    try {
+      const created = await addFiles(project.id, picked);
+      if (created.length > 0 && !activeFileId) {
+        await setActiveFile(created[0].id);
+      }
+    } catch (e) {
+      console.error("handleDropZoneFiles failed", e);
     }
   };
 
@@ -107,7 +117,7 @@ export function ProjectPage() {
     }
   };
 
-  const mediaSrc = activeFile ? srcForPath(activeFile.path) : null;
+  const mediaSrc = activeFile ? ipc.mediaSrc(activeFile) : null;
 
   const hasFiles = sortedFiles.length > 0;
   const anyProcessing = sortedFiles.some((f) => f.status === "processing");
@@ -157,7 +167,7 @@ export function ProjectPage() {
 
       {!hasFiles ? (
         <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center px-6 py-10">
-          <DropZone onFiles={handlePick} onPick={handlePick} />
+          <DropZone onFiles={handleDropZoneFiles} onPick={handlePick} />
         </div>
       ) : (
         <div className="grid min-h-0 flex-1 grid-cols-[minmax(280px,340px)_1fr] gap-4 overflow-hidden p-4">

@@ -1,10 +1,10 @@
 import { create } from "zustand";
 import { ipc } from "../ipc/client";
+import type { PickedMedia } from "../lib/filePicker";
 import type {
   FileStatus,
   MediaFile,
   MediaKind,
-  NewFileInput,
   Project,
   Segment,
 } from "../types";
@@ -24,10 +24,7 @@ interface AppState {
   deleteProject: (id: string) => Promise<void>;
   setActiveProject: (id: string | null) => Promise<void>;
 
-  addFiles: (
-    projectId: string,
-    inputs: NewFileInput[],
-  ) => Promise<MediaFile[]>;
+  addFiles: (projectId: string, picked: PickedMedia) => Promise<MediaFile[]>;
   removeFile: (id: string) => Promise<void>;
   setActiveFile: (id: string | null) => Promise<void>;
   resetFile: (id: string) => Promise<void>;
@@ -111,14 +108,21 @@ export const useAppStore = create<AppState>()((set) => ({
     });
   },
 
-  async addFiles(projectId, inputs) {
-    const payload = inputs.map((i) => ({
-      name: i.name,
-      path: i.path,
-      kind: i.kind ?? detectKind(i.name),
-      sizeBytes: i.sizeBytes,
-    }));
-    const created = await ipc.fileAddMany(projectId, payload);
+  async addFiles(projectId, picked) {
+    let created: MediaFile[];
+    if (picked.mode === "paths") {
+      if (picked.inputs.length === 0) return [];
+      const payload = picked.inputs.map((i) => ({
+        name: i.name,
+        path: i.path,
+        kind: i.kind ?? detectKind(i.name),
+        sizeBytes: i.sizeBytes,
+      }));
+      created = await ipc.fileAddMany(projectId, payload);
+    } else {
+      if (picked.files.length === 0) return [];
+      created = await ipc.fileUpload(projectId, picked.files);
+    }
     set((s) => ({
       files: [...s.files, ...created],
       activeFileId: s.activeFileId ?? created[0]?.id ?? null,

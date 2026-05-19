@@ -1,0 +1,42 @@
+# Local development / on-prem deployment without TLS.
+# Skips nginx-proxy + acme-companion — frontend nginx publishes directly on
+# ${PORT:-8080} of the host. Use the main docker-compose.yml for public
+# deployments where you want Let's Encrypt-managed HTTPS.
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    platform: ${BACKEND_PLATFORM:-linux/amd64}
+    container_name: ais-backend
+    restart: unless-stopped
+    environment:
+      AIS_DATA_DIR: /data
+      AIS_BIND: 0.0.0.0:8080
+      AIS_MAX_UPLOAD_MB: ${AIS_MAX_UPLOAD_MB:-2048}
+      RUST_LOG: ${RUST_LOG:-info}
+    volumes:
+      - ais-data:/data
+    networks:
+      - app
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.web-frontend
+    container_name: ais-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${PORT:-8080}:80"
+    networks:
+      - app
+
+volumes:
+  ais-data:
+
+networks:
+  app:
+    name: ais-app-local
