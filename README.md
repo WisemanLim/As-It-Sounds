@@ -38,6 +38,7 @@ Tauri 2 · Rust · React 19 · TypeScript · Whisper.cpp
 - ▶️ **미디어 플레이어 연동** — 재생 위치에 따른 세그먼트 실시간 하이라이트, 세그먼트 클릭 시 해당 구간으로 시크
 - 💾 **로컬 SQLite 저장** — 프로젝트·파일·세그먼트·설정 영구 저장
 - 🖥️ **멀티플랫폼** — macOS (Universal), Windows, Linux
+- 🌍 **웹 배포 지원** — 동일 Rust 코어를 axum HTTP/SSE 서버로 재사용, Docker 한 줄로 셀프호스트 → [README-Web.md](README-Web.md)
 
 ### 시스템 요구사항
 
@@ -372,15 +373,29 @@ pnpm tauri:build:win
 │   ├── PRD.md
 │   └── Perplexity-As it sounds 구현을 위한 조사.md
 ├── .github/workflows/              # CI + release 워크플로우
-├── src/                            # React 프론트엔드
+├── Usage.md                        # 상세 사용 가이드
+├── README-Web.md                   # 웹 배포 가이드
+├── docker-compose.yml              # 웹: nginx-proxy + acme + backend + frontend
+├── docker-compose.local.yml        # 웹: 로컬(HTTPS 없음) 배포
+├── Dockerfile.web                  # 웹 백엔드 (axum) 이미지
+├── Dockerfile.web-frontend         # 웹 프론트엔드 (nginx) 이미지
+├── Dockerfile.linux-build          # 데스크탑 Linux 크로스빌드용
+├── deploy/nginx.app.conf           # 웹 프론트 컨테이너 nginx 설정
+├── .env.example                    # 웹: DOMAIN / LETSENCRYPT_EMAIL 템플릿
+├── src/                            # React 프론트엔드 (데스크탑 + 웹 공용)
 │   ├── components/                 # UI 컴포넌트
 │   ├── hooks/                      # 네이티브 드롭 등 훅
-│   ├── ipc/                        # Tauri invoke 래퍼
-│   ├── lib/                        # 파일 선택, 포맷 유틸
+│   ├── ipc/                        # IPC 스위처: client.ts(분기) / tauriClient.ts / webClient.ts
+│   ├── lib/                        # 파일 선택, 포맷 유틸, env.ts(isTauri 감지)
 │   ├── pages/                      # 홈/프로젝트/설정 라우트
 │   ├── store/                      # Zustand 전역 상태
 │   └── types.ts                    # 프론트 타입
-└── src-tauri/                      # Rust 백엔드
+├── web-server/                     # 웹 백엔드 axum 크레이트 (코어 #[path] 재사용)
+│   └── src/
+│       ├── main.rs                 # axum 라우터, REST/SSE 핸들러
+│       ├── pipeline.rs             # broadcast 이벤트 기반 파이프라인
+│       └── core.rs                 # src-tauri/src/core/* 재포함
+└── src-tauri/                      # Rust 백엔드 (데스크탑)
     ├── src/
     │   ├── commands.rs             # Tauri 명령 정의
     │   ├── lib.rs                  # 앱 진입점, 상태 등록
@@ -474,6 +489,7 @@ MIT — [LICENSE](LICENSE) 참조.
 - ▶️ **Player-linked segment view** — current segment is highlighted as media plays; click a segment to seek
 - 💾 **Local SQLite persistence** — projects, files, segments, settings
 - 🖥️ **Cross-platform** — macOS (Universal), Windows, Linux
+- 🌍 **Web deployment** — same Rust core reused via an axum HTTP/SSE server, self-host with one Docker command → [README-Web.md](README-Web.md)
 
 ### Requirements
 
