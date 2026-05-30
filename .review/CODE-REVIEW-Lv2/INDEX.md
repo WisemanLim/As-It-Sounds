@@ -404,7 +404,7 @@ devDeps: tauri-cli, react/types, vite 7, tailwindcss, typescript ~5.8.
 
 1. **Tauri ↔ Web 듀얼 코어 공유**: `web-server/src/core.rs`가 `#[path]`로 데스크톱 core를 직접 재익스포트. 변경 시 한쪽 경로에서만 컴파일 에러를 만나도 다른 쪽이 무사히 깨질 수 있음. 통합 테스트가 필수.
 2. **`Arc<parking_lot::Mutex<Connection>>` 글로벌 DB 풀**: 모든 쿼리 직렬화. 대량 동시 호출엔 병목, 비동기 컨텍스트에서 lock 보유 중 await 없으니 데드락 위험은 낮음 — 다만 `Pipeline::run`이 segment를 1개씩 insert 하므로 트랜잭션 적용을 권장.
-3. **에러 처리의 두 흐름**: Rust 측은 `AppError`(`Serialize`로 IPC에 그대로 표시), 프런트는 캐치하지 않는 path와 캐치하는 path가 혼재. (예: `Sidebar.handleNewProject` 는 await 누락 + try/catch 없음.)
+3. **에러 처리의 두 흐름**: Rust 측은 `AppError`(`Serialize`로 IPC에 그대로 표시), 프런트는 캐치하지 않는 path와 캐치하는 path가 혼재. (예: `Sidebar.handleNewProject` 는 await 누락이었으나 2026-05-30 `async`/`await` 로 수정됨; try/catch 는 여전히 없음.)
 4. **이벤트 → store 단방향 흐름**: PipelineListener가 한 번 구독해서 useAppStore / usePipelineStore 양쪽으로 디스패치. 깔끔하지만 `onPipelineEvent` await가 useEffect 안 비동기 then이라 cleanup 타이밍 레이스가 있음(§4.3).
 
 ### 4.2 계층 위반 / Layering violations
@@ -417,7 +417,7 @@ devDeps: tauri-cli, react/types, vite 7, tailwindcss, typescript ~5.8.
 
 1. 🔴 **web-server CORS `Any/Any/Any`** (`web-server/src/main.rs:135`) — 멀티파트 업로드 엔드포인트가 모든 origin을 허용. 외부 노출 시 CSRF/리소스 남용 위험. `expose_headers` 미설정도 함께.
 2. 🔴 **MyMemory/LibreTranslate 평문 전송** (`src-tauri/src/core/translate.rs:57-69`) — 사용자 음성이 평문 GET 쿼리로 외부 서비스에 전송됨. 기본값으로 즉시 발생. 설정에서 끄도록 명시했지만 기본이 ON.
-3. 🟡 **`Sidebar.handleNewProject`가 Promise를 그대로 navigate에 넘김** (`src/components/Sidebar.tsx:41-44`) — `createProject()`는 Promise를 반환하는데 `${id}`로 즉시 보간 → `/projects/[object Promise]` 경로가 나옴(현실 버그).
+3. ✅ **(수정됨 / FIXED 2026-05-30) `Sidebar.handleNewProject`가 Promise를 그대로 navigate에 넘기던 버그** (`src/components/Sidebar.tsx:41-44`) — `createProject()` 가 `Promise<Project>` 인데 `${id}` 로 즉시 보간해 `/projects/[object Promise]` 가 나오던 현실 버그. `async`/`await createProject()` + `p.id` 로 수정, 브라우저 회귀 시험 통과(`test/results/WEB-RESULTS.md` W2).
 4. 🟡 **PipelineListener cleanup 레이스** (`src/components/PipelineListener.tsx:50-55`) — `onPipelineEvent(...).then(u => unlisten = u)` 이지만, effect cleanup이 then 콜백 전에 실행되면 unlisten이 `null` 이라 핸들러가 영구 등록됨.
 5. 🟡 **`tauri_plugin_opener` 의존성만 등록** (`src-tauri/Cargo.toml` + lib.rs) — 플러그인은 init 하지만 코드에서 호출처가 없음. 사용 의도 없으면 권한 축소를 위해 제거.
 
@@ -436,7 +436,7 @@ devDeps: tauri-cli, react/types, vite 7, tailwindcss, typescript ~5.8.
 ### 4.6 다음 단계 / Next steps
 
 1. CORS 정책을 origin 허용 목록 또는 환경 변수로 분리(우선순위 최상위).
-2. `Sidebar.handleNewProject` Promise 버그 수정(`await` 추가).
+2. ~~`Sidebar.handleNewProject` Promise 버그 수정(`await` 추가).~~ ✅ 완료 (2026-05-30).
 3. `Pipeline::run`에 segment insert를 1 트랜잭션으로 묶어 SQLite I/O 감소.
 4. core를 공유 crate(`as-it-sounds-core`)로 추출하고 web-server/src-tauri가 그것을 의존하도록 변경.
 5. 번역 비활성화를 기본값으로 두거나 사용자에게 명시적 동의 UI 추가.

@@ -56,7 +56,7 @@ export function HomePage() {
 ```
 
 **분석 / Analysis (Level 2)**
-- `handleCreate` 가 `await createProject()` 로 올바르게 처리 — Sidebar 의 `handleNewProject` 버그와 대비된다. 같은 store 액션을 다르게 다루므로 일관성 결여.
+- `handleCreate` 가 `await createProject()` 로 올바르게 처리. (과거 Sidebar 의 `handleNewProject` 가 await 누락 버그였으나 2026-05-30 동일 패턴으로 수정되어 이제 양쪽 일관됨.)
 - `startWithPicked` 가 빈 픽 조기 반환 → 빈 프로젝트가 자동 생성되는 사고 방지.
 
 **짚어볼 점 / Watch-outs**

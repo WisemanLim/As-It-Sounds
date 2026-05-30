@@ -73,19 +73,20 @@ export function Sidebar() {
     return projects.filter((p) => p.name.toLowerCase().includes(q));
   }, [projects, query]);
 
-  const handleNewProject = () => {
-    const id = createProject();
-    navigate(`/projects/${id}`);
+  const handleNewProject = async () => {
+    const p = await createProject();
+    navigate(`/projects/${p.id}`);
   };
 ```
 
 **분석 / Analysis (Level 2)**
 - 검색 필터는 case-insensitive substring — 충분히 단순.
 - `useMemo` 로 검색이 매 입력마다 재계산되지 않도록 → projects 또는 query 가 변할 때만 갱신.
-- **버그**: `createProject` 는 zustand store 정의를 보면 `Promise<Project>` 를 반환한다. 여기서는 `const id = createProject();` 로 Promise 객체를 받아 그대로 `${id}` 에 보간 → `/projects/[object Promise]` 가 된다.
+- **(수정됨 / FIXED, 2026-05-30)**: 이전 버전은 `const id = createProject();` 로 `Promise<Project>` 를 그대로 보간해 `/projects/[object Promise]` → "프로젝트를 찾을 수 없습니다" 로 깨졌다. 이제 `async` + `await createProject()` 후 `p.id` 를 사용 → 실제 UUID 라우트로 이동. `HomePage.tsx` 의 패턴(`await createProject(); p.id`)과 일치.
+- `createProject` 는 zustand store 에서 `Promise<Project>` 를 반환(웹은 `POST /api/projects`, 데스크톱은 tauri IPC) 하므로 await 가 반드시 필요.
 
 **짚어볼 점 / Watch-outs**
-- **명백한 버그**: `handleNewProject` 가 await 없이 promise 를 id 로 취급. `const p = await createProject(); navigate('/projects/' + p.id);` 로 고쳐야 함.
+- (해결됨 / Resolved) 브라우저 시험으로 회귀 확인: 클릭 시 `#/projects/<uuid>` 이동, 콘솔 오류 0. → `test/results/WEB-RESULTS.md` (W2).
 
 ```tsx path=src/components/Sidebar.tsx lines=46-49
   const handleOpenProject = (id: string) => {
@@ -217,11 +218,11 @@ export function Sidebar() {
   - 삭제 흐름이 확인 → 액션 → 라우트 정리까지 깔끔.
   - collapsed 토글이 클래스 기반으로 단순.
 - 위험 / Risks:
-  - **명백한 버그**: `handleNewProject` 가 Promise 객체를 그대로 URL 에 넣는다 → 깨진 라우트.
+  - ~~**명백한 버그**: `handleNewProject` 가 Promise 객체를 그대로 URL 에 넣는다 → 깨진 라우트.~~ **(2026-05-30 수정 완료 / FIXED)**
   - import 가 코드 사이에 끼어 있어 린트 규칙 위반.
   - `setActiveProject` 등 async 호출 fire-and-forget — 실패가 fatal 오버레이로 빠질 가능성.
 - 개선 권고 / Recommendations:
-  - `handleNewProject` 를 `async` + `await createProject()` 로 수정.
-  - `confirmDialog` 함수를 `../lib/dialog.ts` 등 별도 모듈로 분리 (DRY + 림트 친화).
-  - async 호출에 `.catch(console.error)` 추가.
-- 재읽기 권고 레벨 / Suggested re-read level: 2 — 버그 수정 후 재확인.
+  - ~~`handleNewProject` 를 `async` + `await createProject()` 로 수정.~~ **완료 / Done** (commit `02429c0`).
+  - `confirmDialog` 함수를 `../lib/dialog.ts` 등 별도 모듈로 분리 (DRY + 린트 친화).
+  - async 호출에 `.catch(console.error)` 추가 (잔존: `handleOpenProject` 의 `setActiveProject`).
+- 재읽기 권고 레벨 / Suggested re-read level: 2 — 신규 프로젝트 버그는 해결됨. 남은 항목은 import 정리 + fire-and-forget catch.

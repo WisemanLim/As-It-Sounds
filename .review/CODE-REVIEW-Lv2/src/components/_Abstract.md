@@ -27,6 +27,6 @@ UI 컴포넌트 모음. Layout이 Sidebar+Outlet으로 셸을 그리고, 페이�
 
 ## 리스크 시그널
 
-- `Sidebar.tsx::handleNewProject`가 Promise를 navigate 인자에 즉시 보간 — URL이 깨짐 (INDEX §4.3 #3).
+- ~~`Sidebar.tsx::handleNewProject`가 Promise를 navigate 인자에 즉시 보간 — URL이 깨짐~~ ✅ 수정됨 2026-05-30 (`async`/`await` + `p.id`; INDEX §4.3 #3).
 - `PipelineListener`의 cleanup 레이스 (INDEX §4.3 #4).
 - `MediaPlayer.tsx`가 `audioRef.current?.currentTime`을 렌더 함수 안에서 직접 읽음 → 첫 렌더와 이후 렌더 사이의 동기화가 보장되지 않음.

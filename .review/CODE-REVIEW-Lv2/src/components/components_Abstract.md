@@ -24,6 +24,6 @@
 - `MediaPlayer` 는 `MediaPlayerHandle` 을 forwardRef + useImperativeHandle 로 부모(ProjectPage)에게 노출.
 
 ## 위험 신호 / Risk Signals
-- `Sidebar.handleNewProject` 가 `createProject()` 의 Promise 를 await 없이 URL 에 보간 → 라우트 깨짐 (명백한 버그).
+- ~~`Sidebar.handleNewProject` 가 `createProject()` 의 Promise 를 await 없이 URL 에 보간 → 라우트 깨짐~~ ✅ 수정됨 2026-05-30 (`async`/`await` + `p.id`).
 - `MediaPlayer.play()` 의 Promise rejection 미처리 — autoplay 정책에서 fatal 오버레이 트리거 가능.
 - `PipelineListener` 의 onPipelineEvent subscribe Promise 가 race condition 에 무방비 — `useTauriDrop` 의 `disposed` 패턴과 일관성 결여.
