@@ -1,4 +1,6 @@
-# As It Sounds — Product Requirements Document (PRD)
+# As It Sounds — 제품 요구사항 문서 (PRD)
+
+> 🌐 **한국어** · [English](PRD.en.md)
 
 ## 1. 개요
 

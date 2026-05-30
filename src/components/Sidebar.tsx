@@ -38,9 +38,9 @@ export function Sidebar() {
     return projects.filter((p) => p.name.toLowerCase().includes(q));
   }, [projects, query]);
 
-  const handleNewProject = () => {
-    const id = createProject();
-    navigate(`/projects/${id}`);
+  const handleNewProject = async () => {
+    const p = await createProject();
+    navigate(`/projects/${p.id}`);
   };
 
   const handleOpenProject = (id: string) => {

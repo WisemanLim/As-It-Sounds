@@ -48,3 +48,4 @@ models/
 
 # web-server
 web-server/target
+.gstack/

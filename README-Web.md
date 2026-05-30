@@ -1,4 +1,6 @@
-# As It Sounds — Web Deployment
+# As It Sounds — Web 배포
+
+> 🌐 **한국어** · [English](README-Web.en.md)
 
 > 데스크탑 Tauri 앱과 **동일한 Rust 코어**(whisper-rs + ffmpeg + 다국어 한글 음차 + 번역)를 그대로 재사용하는 웹앱 배포 가이드.
 > nginx-proxy + acme-companion 로 Let's Encrypt 인증서를 자동 발급/갱신하며, `docker compose up -d` 한 줄로 띄울 수 있습니다.
@@ -170,8 +172,8 @@ docker compose build --no-cache backend
 
 ### 백엔드 (`Dockerfile.web`)
 
-- 빌드 stage: `rust:1.82-bookworm` + `cmake`/`clang` (whisper.cpp 빌드용)
-- 런타임 stage: `debian:bookworm-slim` + `ffmpeg` + `ca-certificates` + `libgomp1`
+- 빌드 스테이지: `rust:1.82-bookworm` + `cmake`/`clang` (whisper.cpp 빌드용)
+- 런타임 스테이지: `debian:bookworm-slim` + `ffmpeg` + `ca-certificates` + `libgomp1`
 - BuildKit 캐시 마운트로 `cargo` 레지스트리 / `target/` 을 재사용
 - 결과 바이너리: `/usr/local/bin/as-it-sounds-web`
 

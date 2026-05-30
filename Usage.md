@@ -1,5 +1,7 @@
 # As It Sounds — 설치 및 사용 가이드 (멀티플랫폼)
 
+> 🌐 **한국어** · [English](Usage.en.md)
+
 **플랫폼:** macOS 11+ (ARM / Intel) · Windows 10/11 · Linux (Ubuntu 20.04+, Fedora, Arch)
 
 | 플랫폼 | 빌드 파일 (v0.1.0) |
