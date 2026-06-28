@@ -4,11 +4,16 @@ import type { Settings } from "../types";
 import toast from "../lib/toast";
 
 const MODEL_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: "tiny.en", label: "tiny.en (75 MB · 가장 빠름)" },
-  { value: "base.en", label: "base.en (142 MB · 기본 권장)" },
-  { value: "small.en", label: "small.en (466 MB · 균형)" },
-  { value: "medium.en", label: "medium.en (1.5 GB · 정확)" },
-  { value: "large-v3", label: "large-v3 (2.9 GB · 최고 품질)" },
+  { value: "tiny.en", label: "tiny.en (75 MB · 가장 빠름 · 영어 전용)" },
+  { value: "tiny", label: "tiny (75 MB · 가장 빠름 · 다국어)" },
+  { value: "base.en", label: "base.en (142 MB · 기본 권장 · 영어 전용)" },
+  { value: "base", label: "base (142 MB · 기본 권장 · 다국어)" },
+  { value: "small.en", label: "small.en (466 MB · 균형 · 영어 전용)" },
+  { value: "small", label: "small (466 MB · 균형 · 다국어)" },
+  { value: "medium.en", label: "medium.en (1.5 GB · 정확 · 영어 전용)" },
+  { value: "medium", label: "medium (1.5 GB · 정확 · 다국어)" },
+  { value: "large-v3-turbo", label: "large-v3-turbo (1.6 GB · 빠른 대형 · 다국어)" },
+  { value: "large-v3", label: "large-v3 (2.9 GB · 최고 품질 · 다국어)" },
 ];
 
 const TRANSLATOR_OPTIONS: Array<{ value: string; label: string; endpoint: string }> = [

@@ -79,6 +79,7 @@ impl Pipeline {
                         file_id: file_id.clone(),
                         stage: "decode".into(),
                         message: "오디오 추출 중...".into(),
+                        percent: None,
                     },
                 );
                 let input_path = PathBuf::from(&file.path);
@@ -106,6 +107,7 @@ impl Pipeline {
                         file_id: file_id.clone(),
                         stage: "asr".into(),
                         message: "Whisper 추론 중...".into(),
+                        percent: None,
                     },
                 );
                 let asr_segments = self
@@ -117,19 +119,21 @@ impl Pipeline {
                     return Err(AppError::Generic("인식된 세그먼트가 없습니다.".into()));
                 }
 
+                let texts: Vec<String> =
+                    asr_segments.iter().map(|s| s.text.clone()).collect();
+                let ko_translations =
+                    translate::translate_many(&settings, &self.http, &texts).await;
+
+                let total = asr_segments.len();
                 Self::emit(
                     &app,
                     &PipelineEvent::Progress {
                         file_id: file_id.clone(),
                         stage: "translate".into(),
-                        message: "번역·음차 변환 중...".into(),
+                        message: format!("번역·음차 변환 중... (0/{})", total),
+                        percent: Some(0.0),
                     },
                 );
-
-                let texts: Vec<String> =
-                    asr_segments.iter().map(|s| s.text.clone()).collect();
-                let ko_translations =
-                    translate::translate_many(&settings, &self.http, &texts).await;
 
                 for (i, seg) in asr_segments.into_iter().enumerate() {
                     let hangul = translit::transliterate(&seg.text);
@@ -146,6 +150,16 @@ impl Pipeline {
                     };
                     self.db.insert_segment(&segment)?;
                     Self::emit(&app, &PipelineEvent::Segment { segment });
+                    let percent = (i + 1) as f32 / total as f32;
+                    Self::emit(
+                        &app,
+                        &PipelineEvent::Progress {
+                            file_id: file_id.clone(),
+                            stage: "translate".into(),
+                            message: format!("번역·음차 변환 중... ({}/{})", i + 1, total),
+                            percent: Some(percent),
+                        },
+                    );
                 }
 
                 self.db.set_file_status(&file_id, FileStatus::Done, None)?;

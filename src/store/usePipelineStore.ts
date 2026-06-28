@@ -3,6 +3,7 @@ import { create } from "zustand";
 interface Stage {
   stage: string;
   message: string;
+  percent: number | null;
 }
 
 interface Download {

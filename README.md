@@ -462,6 +462,9 @@ MediaFile (영어·일본어·프랑스어·스페인어·독일어·러시아�
 - [x] Phase 5 번역 — MyMemory / LibreTranslate
 - [x] Phase 6 영구화 — SQLite
 - [x] Phase 7 패키징 — 번들 / 엔타이틀먼트 / CI / GitHub Release
+- [x] **F1 실시간 진행률** — 단계별(decode·asr·translate) 진행 상태 표시 + translate 세그먼트 단위 퍼센트 프로그레스 바
+- [x] **F2 파일 재시도** — 오류/중단 파일 재시도 버튼 (`file_reset` → 파이프라인 재실행)
+- [x] **F3 고품질 모델** — medium·large-v3-turbo 추가, 영어 전용/다국어 variants 구분 (10개 옵션)
 - [ ] Phase 8 편집·내보내기 — SRT/VTT 내보내기, 세그먼트 수동 수정, 재변환
 - [ ] Phase 9 실시간 녹음 STT
 

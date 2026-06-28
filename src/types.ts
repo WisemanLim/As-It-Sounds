@@ -55,6 +55,7 @@ export type PipelineEvent =
       fileId: string;
       stage: "decode" | "asr" | "translate" | string;
       message: string;
+      percent?: number;
     }
   | { type: "segment"; segment: Segment }
   | { type: "fileDone"; fileId: string; durationMs?: number }

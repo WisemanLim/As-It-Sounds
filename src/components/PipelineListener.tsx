@@ -20,13 +20,13 @@ export function PipelineListener() {
         case "fileStarted":
           patchFile(e.fileId, { status: "processing", error: undefined });
           clearSegmentsForFile(e.fileId);
-          setStage(e.fileId, { stage: "decode", message: "시작..." });
+          setStage(e.fileId, { stage: "decode", message: "시작...", percent: null });
           break;
         case "modelDownloading":
           setDownload({ progress: e.progress, message: e.message });
           break;
         case "progress":
-          setStage(e.fileId, { stage: e.stage, message: e.message });
+          setStage(e.fileId, { stage: e.stage, message: e.message, percent: e.percent ?? null });
           break;
         case "segment":
           upsertSegment(e.segment);

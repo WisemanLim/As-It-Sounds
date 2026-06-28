@@ -139,6 +139,8 @@ pub enum PipelineEvent {
         file_id: String,
         stage: String,
         message: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        percent: Option<f32>,
     },
     #[serde(rename_all = "camelCase")]
     Segment { segment: Segment },

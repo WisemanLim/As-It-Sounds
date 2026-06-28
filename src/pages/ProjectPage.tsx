@@ -105,6 +105,15 @@ export function ProjectPage() {
     }
   };
 
+  const handleRetry = async (fileId: string) => {
+    try {
+      await ipc.fileReset(fileId);
+      await ipc.pipelineRun([fileId]);
+    } catch (e) {
+      console.error("retry failed", e);
+    }
+  };
+
   const runPipeline = async () => {
     try {
       const ids = sortedFiles
@@ -173,7 +182,7 @@ export function ProjectPage() {
         <div className="grid min-h-0 flex-1 grid-cols-[minmax(280px,340px)_1fr] gap-4 overflow-hidden p-4">
           <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto pr-1">
             <DropZone onFiles={handlePick} onPick={handlePick} compact />
-            <FileList files={sortedFiles} stages={stages} />
+            <FileList files={sortedFiles} stages={stages} onRetry={handleRetry} />
           </aside>
 
           <section className="flex min-h-0 flex-col gap-3 overflow-hidden">
@@ -195,10 +204,20 @@ export function ProjectPage() {
 
             {activeStage && (
               <div className="rounded-lg border border-line bg-bg-elevated px-3 py-2 text-xs text-fg-muted">
-                <span className="mr-2 rounded bg-brand-soft px-1.5 py-0.5 font-medium text-brand">
-                  {activeStage.stage}
-                </span>
-                {activeStage.message}
+                <div className="flex items-center gap-2">
+                  <span className="rounded bg-brand-soft px-1.5 py-0.5 font-medium text-brand">
+                    {activeStage.stage}
+                  </span>
+                  {activeStage.message}
+                </div>
+                {activeStage.percent != null && (
+                  <div className="mt-1.5 h-1 w-full overflow-hidden rounded bg-bg-hover">
+                    <div
+                      className="h-full bg-brand transition-all"
+                      style={{ width: `${Math.round(activeStage.percent * 100)}%` }}
+                    />
+                  </div>
+                )}
               </div>
             )}
 

@@ -69,7 +69,9 @@
 | F-6 | 미디어 플레이어 | 파일 재생/일시정지, 현재 재생 시각에 해당하는 세그먼트 하이라이트. |
 | F-7 | 세그먼트 클릭 탐색 | 세그먼트를 클릭하면 해당 타임스탬프로 시크. |
 | F-8 | 로컬 저장 | 프로젝트·세그먼트·설정을 SQLite에 영구 저장. |
-| F-9 | 설정 화면 | Whisper 모델 선택(tiny/base/small/medium/large), 번역 엔진 선택, API 키 저장. |
+| F-9 | 설정 화면 | Whisper 모델 선택(tiny/base/small/medium/large-v3-turbo/large-v3 × 영어전용·다국어), 번역 엔진 선택, API 키 저장. |
+| F-22 | 실시간 변환 진행률 | 파이프라인 단계(decode·asr·translate)별 진행 상태 표시. translate 단계는 세그먼트 단위 퍼센트 프로그레스 바 표시. |
+| F-23 | 오류/중단 파일 재시도 | 오류(error) 또는 처리 중(processing) 상태 파일에 재시도 버튼 표시. `file_reset` 후 파이프라인 재실행. |
 
 ### 4.2 Phase 2 (확장)
 
@@ -282,3 +284,12 @@ CREATE INDEX idx_segments_file ON segments(file_id, idx);
 - 음차 가독성 사용자 만족도(베타 설문) ≥ 4 / 5.
 - 콜드 스타트 → 첫 세그먼트 표시까지 ≤ **10초** (Whisper small, M1 기준).
 - 오프라인 모드에서 전체 파이프라인 100% 동작.
+
+---
+
+## 변경 이력
+
+| 차수 | 날짜 | 내용 |
+| :-- | :-- | :-- |
+| 1차 | 초기 | MVP 기능 정의 (F-1~F-9), 시스템 아키텍처, 데이터 모델 |
+| 2차 | 2026-06-28 | F-22 실시간 진행률(progress bar per stage), F-23 오류 파일 재시도, F-9 모델 확장(medium/large-v3-turbo/다국어 variants) |

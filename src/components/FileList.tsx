@@ -2,16 +2,18 @@ import { cn } from "../lib/cn";
 import { formatDuration } from "../lib/format";
 import { useAppStore } from "../store/useAppStore";
 import type { MediaFile } from "../types";
-import { IconAudio, IconTrash, IconVideo } from "./icons";
+import { IconAudio, IconRefresh, IconTrash, IconVideo } from "./icons";
 
 interface Stage {
   stage: string;
   message: string;
+  percent: number | null;
 }
 
 interface Props {
   files: MediaFile[];
   stages?: Record<string, Stage>;
+  onRetry?: (fileId: string) => void;
 }
 
 const statusStyle: Record<MediaFile["status"], string> = {
@@ -28,7 +30,7 @@ const statusLabel: Record<MediaFile["status"], string> = {
   error: "오류",
 };
 
-export function FileList({ files, stages }: Props) {
+export function FileList({ files, stages, onRetry }: Props) {
   const activeFileId = useAppStore((s) => s.activeFileId);
   const setActiveFile = useAppStore((s) => s.setActiveFile);
   const removeFile = useAppStore((s) => s.removeFile);
@@ -90,6 +92,14 @@ export function FileList({ files, stages }: Props) {
                     {f.error}
                   </div>
                 )}
+                {stage?.percent != null && (
+                  <div className="mt-1 h-0.5 w-full overflow-hidden rounded bg-bg-hover">
+                    <div
+                      className="h-full bg-brand transition-all"
+                      style={{ width: `${Math.round(stage.percent * 100)}%` }}
+                    />
+                  </div>
+                )}
               </div>
 
               <span
@@ -100,6 +110,19 @@ export function FileList({ files, stages }: Props) {
               >
                 {statusLabel[f.status]}
               </span>
+
+              {(f.status === "error" || f.status === "processing") && onRetry && (
+                <button
+                  className="invisible rounded p-1.5 text-fg-subtle hover:bg-bg hover:text-brand group-hover:visible"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRetry(f.id);
+                  }}
+                  title="재시도"
+                >
+                  <IconRefresh width={14} height={14} />
+                </button>
+              )}
 
               <button
                 className="invisible rounded p-1.5 text-fg-subtle hover:bg-bg hover:text-fg group-hover:visible"

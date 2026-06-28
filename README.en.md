@@ -462,6 +462,9 @@ MediaFile (any language: English, Japanese, French, Spanish, German, Russian…)
 - [x] Phase 5 Translation — MyMemory / LibreTranslate
 - [x] Phase 6 Persistence — SQLite
 - [x] Phase 7 Packaging — bundle / entitlements / CI / GitHub Release
+- [x] **F1 Real-time progress** — per-stage (decode · asr · translate) status display + per-segment progress bar during translation
+- [x] **F2 File retry** — retry button for error/stuck files (`file_reset` → pipeline re-run)
+- [x] **F3 Better models** — medium · large-v3-turbo added; English-only vs. multilingual variants labelled (10 options)
 - [ ] Phase 8 Editing & export — SRT/VTT export, segment editing, re-run
 - [ ] Phase 9 Live recording STT
 
